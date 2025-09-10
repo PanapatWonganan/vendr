@@ -1,0 +1,229 @@
+/* 🌨️ SIMPLE BLUE + WHITE COLOR SYSTEM FOR INNOBIC */
+/* Clean, minimal color palette - ตาไม่เมื่อย */
+
+:root {
+  /* =====================================================
+     💙 SIMPLE BLUE PALETTE - เรียบๆ สบายตา
+     ===================================================== */
+  --primary-50: #eff6ff;   /* ฟ้าอ่อนมาก */
+  --primary-100: #dbeafe;  /* ฟ้าอ่อน */
+  --primary-200: #bfdbfe;  /* ฟ้าอ่อนปานกลาง */
+  --primary-300: #93c5fd;  /* ฟ้าปานกลาง */
+  --primary-400: #60a5fa;  /* ฟ้าใส */
+  --primary-500: #3b82f6;  /* ฟ้าหลัก */
+  --primary-600: #2563eb;  /* ฟ้าเข้ม */
+  --primary-700: #1d4ed8;  /* ฟ้าเข้มมาก */
+  --primary-800: #1e40af;  /* น้ำเงินฟ้า */
+  --primary-900: #1e3a8a;  /* น้ำเงินเข้ม */
+  
+  /* =====================================================
+     💚 SUCCESS - เขียวเรียบๆ (แค่เมื่อจำเป็น)
+     ===================================================== */
+  --success-500: #22c55e;   /* เขียวอ่อน สบายตา */
+  --success-600: #16a34a;
+  
+  /* =====================================================
+     🟡 WARNING - เหลืองเรียบๆ (แค่เมื่อจำเป็น)  
+     ===================================================== */
+  --warning-500: #f59e0b;   /* เหลืองอ่อน */
+  --warning-600: #d97706;
+  
+  /* =====================================================
+     🔴 DANGER - แดงเรียบๆ (แค่เมื่อจำเป็น)
+     ===================================================== */
+  --danger-500: #ef4444;    /* แดงอ่อน */
+  --danger-600: #dc2626;
+  
+  /* =====================================================
+     ⚪ NEUTRAL - เทาขาวเรียบๆ
+     ===================================================== */
+  --gray-50: #f9fafb;      /* เกือบขาว */
+  --gray-100: #f3f4f6;     /* ขาวนวล */
+  --gray-200: #e5e7eb;     /* เทาอ่อน */
+  --gray-300: #d1d5db;     /* เทาปานกลาง */
+  --gray-500: #6b7280;     /* เทา */
+  --gray-700: #374151;     /* เทาเข้ม */
+  --gray-800: #1f2937;     /* เทาเข้มมาก */
+  --gray-900: #111827;     /* เกือบดำ */
+  
+  /* =====================================================
+     💙 SIMPLE GRADIENTS - เรียบๆ แค่ฟ้า
+     ===================================================== */
+  --gradient-primary: linear-gradient(135deg, var(--primary-500) 0%, var(--primary-600) 100%);
+  --gradient-primary-soft: linear-gradient(135deg, var(--primary-400) 0%, var(--primary-500) 100%);
+  
+  /* สีอื่นๆ ธรรมดา ไม่ gradient */
+  --simple-success: var(--success-500);
+  --simple-warning: var(--warning-500);
+  --simple-danger: var(--danger-500);
+  
+  /* =====================================================
+     🎯 SEMANTIC COLORS (Updated to use new palette)
+     ===================================================== */
+  --color-primary: var(--primary-500);
+  --color-primary-hover: var(--primary-600);
+  --color-primary-active: var(--primary-700);
+  --color-primary-light: var(--primary-100);
+  
+  --color-success: var(--success-500);
+  --color-success-hover: var(--success-600);
+  --color-success-light: var(--success-100);
+  
+  --color-warning: var(--warning-500);
+  --color-warning-hover: var(--warning-600);
+  --color-warning-light: var(--warning-100);
+  
+  --color-danger: var(--danger-500);
+  --color-danger-hover: var(--danger-600);
+  --color-danger-light: var(--danger-100);
+  
+  --color-info: var(--primary-500);
+  --color-info-hover: var(--primary-600);
+  --color-info-light: var(--primary-100);
+  
+  /* =====================================================
+     🤍 SIMPLE BACKGROUNDS - ขาวเรียบๆ สบายตา
+     ===================================================== */
+  --bg-body: #ffffff;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: var(--primary-50);
+  --bg-card: #ffffff;
+  --bg-card-hover: var(--primary-50);
+  
+  /* =====================================================
+     📝 SIMPLE TEXT COLORS - เรียบๆ
+     ===================================================== */
+  --text-primary: #1f2937;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --text-inverse: #ffffff;
+  
+  /* =====================================================
+     🖼️ SIMPLE BORDER COLORS - เรียบๆ
+     ===================================================== */
+  --border-light: #e5e7eb;
+  --border-medium: #d1d5db;
+  --border-focus: var(--primary-500);
+  
+  /* =====================================================
+     ✨ SIMPLE SHADOWS - เบาๆ ไม่แสบตา
+     ===================================================== */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  
+  /* =====================================================
+     📏 MODERN SPACING & SIZING
+     ===================================================== */
+  --radius-xs: 0.125rem;    /* 2px */
+  --radius-sm: 0.25rem;     /* 4px */
+  --radius-md: 0.375rem;    /* 6px */
+  --radius-lg: 0.5rem;      /* 8px */
+  --radius-xl: 0.75rem;     /* 12px */
+  --radius-2xl: 1rem;       /* 16px */
+  --radius-3xl: 1.5rem;     /* 24px */
+  --radius-full: 9999px;    /* Fully rounded */
+  
+  /* =====================================================
+     ⚡ ANIMATION & TRANSITIONS
+     ===================================================== */
+  --transition-fast: 0.15s ease-in-out;
+  --transition-normal: 0.3s ease-in-out;
+  --transition-slow: 0.5s ease-in-out;
+  --transition-bounce: 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  
+  /* Modern easing curves */
+  --ease-out-cubic: cubic-bezier(0.215, 0.61, 0.355, 1);
+  --ease-in-out-cubic: cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
+/* =====================================================
+   🌙 COMPREHENSIVE DARK MODE OVERRIDES
+   ===================================================== */
+[data-theme="dark"] {
+  /* 🌙 Dark Backgrounds - เทาดำเรียบๆ */
+  --bg-body: #1f2937;
+  --bg-surface: #374151;
+  --bg-surface-hover: #4b5563;
+  --bg-card: #374151;
+  --bg-card-hover: #4b5563;
+  
+  /* 🌙 Improved Dark Text Colors - สีข้อความที่เหมาะกับงาน */
+  --text-primary: #ffffff;          /* ขาวสะอาด สำหรับข้อความหลัก */
+  --text-secondary: #e5e7eb;        /* เทาอ่อน สำหรับข้อความรอง */
+  --text-muted: #9ca3af;            /* เทาปานกลาง สำหรับข้อความเสริม */
+  --text-inverse: #1f2937;          /* ดำ สำหรับข้อความบนพื้นหลังสว่าง */
+  
+  /* 🌙 Additional Text Colors สำหรับความชัดเจน */
+  --text-heading: #ffffff;          /* ขาวสำหรับหัวข้อ */
+  --text-body: #f3f4f6;            /* เทาอ่อนสำหรับเนื้อหา */
+  --text-caption: #d1d5db;          /* เทาอ่อนสำหรับคำอธิบาย */
+  --text-disabled: #6b7280;         /* เทาเข้มสำหรับ disabled */
+  
+  /* 🌙 Dark Borders */
+  --border-light: #4b5563;
+  --border-medium: #6b7280;
+  
+  /* 🌙 Dark Shadows - เบาๆ ในโหมดมืด */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  
+  /* 🌙 Dark Alert Backgrounds */
+  --alert-primary-bg: rgba(59, 130, 246, 0.15);
+  --alert-success-bg: rgba(34, 197, 94, 0.15);
+  --alert-warning-bg: rgba(234, 179, 8, 0.15);
+  --alert-danger-bg: rgba(239, 68, 68, 0.15);
+}
+
+/* =====================================================
+   💫 UTILITY CLASSES FOR QUICK USE
+   ===================================================== */
+
+/* Background utilities */
+.bg-gradient-primary { background: var(--gradient-primary); }
+.bg-gradient-success { background: var(--gradient-success); }
+.bg-gradient-warning { background: var(--gradient-warning); }
+.bg-gradient-danger { background: var(--gradient-danger); }
+.bg-gradient-accent { background: var(--gradient-accent); }
+
+/* Modern shadows */
+.shadow-primary { box-shadow: var(--shadow-primary); }
+.shadow-success { box-shadow: var(--shadow-success); }
+.shadow-warning { box-shadow: var(--shadow-warning); }
+.shadow-danger { box-shadow: var(--shadow-danger); }
+
+/* Glass morphism utilities */
+.bg-glass {
+  background: var(--bg-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.bg-glass-card {
+  background: var(--bg-card);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Modern transitions */
+.transition-modern {
+  transition: all var(--transition-normal);
+}
+
+.transition-bounce {
+  transition: all var(--transition-bounce);
+}
+
+/* Hover effects */
+.hover-lift {
+  transition: transform var(--transition-fast);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+}

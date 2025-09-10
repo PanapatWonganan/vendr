@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Calendar</title>
+</head>
+<body>
+    <script>
+        console.log('Testing calendar widget');
+        
+        // Test function same as widget
+        const testEvent = {
+            extendedProps: {
+                entity_id: 16,
+                entity_type: 'po',
+                description: 'Test PO',
+                priority: 'po_overdue'
+            },
+            title: 'PO: PO-TEST-001'
+        };
+        
+        const priorityText = {
+            'po_overdue': 'เกินกำหนด',
+            'po_urgent': 'ด่วนมาก',
+            'po_high': 'ด่วน',
+            'po_normal': 'ปกติ'
+        };
+        
+        const entityType = testEvent.extendedProps.entity_type;
+        const entityId = testEvent.extendedProps.entity_id;
+        const description = testEvent.extendedProps.description;
+        const priority = testEvent.extendedProps.priority;
+        const typeText = entityType === 'po' ? 'Purchase Order' : 'Purchase Requisition';
+        
+        console.log('Entity ID:', entityId);
+        console.log('Entity Type:', entityType);
+        console.log('URL would be:', `/admin/purchase-orders/${entityId}/edit`);
+        
+        if (confirm(`${typeText}: ${testEvent.title}\n\nรายละเอียด: ${description}\nความสำคัญ: ${priorityText[priority]}\n\nคลิก OK เพื่อดูรายละเอียด`)) {
+            alert('Would redirect to: /admin/purchase-orders/' + entityId + '/edit');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom CSS สำหรับใช้ร่วมกับ Bootstrap 5 */
+.wrapper {
+    display: flex;
+    width: 100%;
+}
+
+#sidebar {
+    transition: margin 0.3s;
+    min-width: 250px;
+    max-width: 250px;
+    min-height: 100vh;
+}
+
+#content {
+    width: 100%;
+    min-height: 100vh;
+    transition: all 0.3s;
+}
+
+.bg-primary {
+    background-color: #0f6db7 !important;
+}
+
+.btn-primary {
+    background-color: #0f6db7 !important;
+    border-color: #0f6db7 !important;
+}
+
+.btn-primary:hover {
+    background-color: #0a5a99 !important;
+    border-color: #0a5a99 !important;
+}
+
+.card {
+    border-radius: 0.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+body {
+    font-family: 'Sarabun', sans-serif;
+}

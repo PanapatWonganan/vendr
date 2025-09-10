@@ -1,0 +1,16 @@
+{
+  "allowedTools": [
+    "Bash(npm *)",
+    "Bash(composer *)",
+    "Bash(php artisan *)",
+    "Bash(git *)",
+    "Read",
+    "Write",
+    "Edit",
+    "MultiEdit",
+    "Glob",
+    "Grep",
+    "LS",
+    "TodoWrite"
+  ]
+}
