@@ -105,6 +105,7 @@ class CreatePurchaseOrder extends CreateRecord
                     'purchase_requisition_id' => $pr->id,
                     'po_title' => $pr->title,
                     'work_type' => $pr->work_type,
+                    'form_category' => $pr->form_category,  // ✅ เพิ่ม form_category จาก PR
                     'procurement_method' => $pr->procurement_method,
                     'department_id' => $pr->department_id,
                     'expected_delivery_date' => $pr->expected_delivery_date,

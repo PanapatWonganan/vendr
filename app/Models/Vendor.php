@@ -49,6 +49,23 @@ class Vendor extends Model
         return $this->hasMany(VendorScore::class);
     }
     
+    public function purchaseOrders()
+    {
+        return $this->hasMany(PurchaseOrder::class, 'vendor_id');
+    }
+    
+    public function goodsReceipts()
+    {
+        return $this->hasManyThrough(
+            GoodsReceipt::class,
+            PurchaseOrder::class,
+            'vendor_id', // Foreign key on purchase_orders table
+            'purchase_order_id', // Foreign key on goods_receipts table
+            'id', // Local key on vendors table
+            'id' // Local key on purchase_orders table
+        );
+    }
+    
     // Accessors
     public function getStatusLabelAttribute()
     {

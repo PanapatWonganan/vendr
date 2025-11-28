@@ -26,6 +26,8 @@ class GoodsReceiptResource extends Resource
     protected static ?string $pluralModelLabel = 'ใบตรวจรับงาน/วัสดุ';
     
     protected static ?string $navigationGroup = 'Procurement Management';
+    
+    protected static ?int $navigationSort = 8;
 
     public static function form(Form $form): Form
     {
@@ -40,12 +42,28 @@ class GoodsReceiptResource extends Resource
                             })
                             ->searchable()
                             ->preload()
+                            ->live()
+                            ->afterStateUpdated(function ($state, $set) {
+                                if ($state) {
+                                    $po = \App\Models\PurchaseOrder::with(['vendor', 'supplier'])->find($state);
+                                    if ($po) {
+                                        // Get vendor info from PO (prefer vendor over supplier for compatibility)
+                                        $vendor = $po->vendor ?: $po->supplier;
+                                        if ($vendor) {
+                                            $set('vendor_id', $vendor->id);
+                                        }
+                                    }
+                                }
+                            })
                             ->required(),
-                        Forms\Components\Select::make('supplier_id')
+                        Forms\Components\Select::make('vendor_id')
                             ->label('ผู้ขาย')
-                            ->relationship('supplier', 'name')
+                            ->relationship('vendor', 'company_name')
+                            ->disabled(fn ($get) => !empty($get('purchase_order_id')))
+                            ->dehydrated()
                             ->searchable()
                             ->preload()
+                            ->live()
                             ->required(),
                         Forms\Components\Select::make('inspection_committee_id')
                             ->label('คณะกรรมการตรวจสอบ')
@@ -142,7 +160,7 @@ class GoodsReceiptResource extends Resource
                     ->label('เลขที่ PO')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('supplier.name')
+                Tables\Columns\TextColumn::make('vendor.company_name')
                     ->label('ผู้ขาย')
                     ->searchable()
                     ->limit(30),
@@ -200,6 +218,33 @@ class GoodsReceiptResource extends Resource
                 Tables\Columns\TextColumn::make('createdBy.name')
                     ->label('ผู้สร้าง')
                     ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\IconColumn::make('email_status')
+                    ->label('สถานะ Email')
+                    ->getStateUsing(function ($record) {
+                        if ($record->reminder_sent_at) {
+                            return 'sent-manual';
+                        } elseif ($record->committee_notified_at) {
+                            return 'sent-auto';
+                        } else {
+                            return 'not-sent';
+                        }
+                    })
+                    ->icon(fn (string $state): string => match ($state) {
+                        'sent-manual' => 'heroicon-o-bell',
+                        'sent-auto' => 'heroicon-o-check-circle',
+                        'not-sent' => 'heroicon-o-x-circle',
+                    })
+                    ->color(fn (string $state): string => match ($state) {
+                        'sent-manual' => 'info',
+                        'sent-auto' => 'success',
+                        'not-sent' => 'danger',
+                    })
+                    ->tooltip(fn (string $state): string => match ($state) {
+                        'sent-manual' => 'ส่งเตือนด้วยตนเอง',
+                        'sent-auto' => 'ส่งอัตโนมัติแล้ว',
+                        'not-sent' => 'ยังไม่ได้ส่ง',
+                    })
+                    ->sortable(false),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('วันที่สร้าง')
                     ->dateTime('d/m/Y H:i')
@@ -243,6 +288,74 @@ class GoodsReceiptResource extends Resource
                     ->label('ดู'),
                 Tables\Actions\EditAction::make()
                     ->label('แก้ไข'),
+                Tables\Actions\Action::make('sendNotification')
+                    ->label(function ($record) {
+                        if ($record->reminder_sent_at) {
+                            return 'ส่งเตือนอีกครั้ง';
+                        } elseif ($record->committee_notified_at) {
+                            return 'ส่งเตือนอีกครั้ง';
+                        } else {
+                            return 'แจ้งเตือนคณะกรรมการ';
+                        }
+                    })
+                    ->icon('heroicon-o-bell')
+                    ->color(function ($record) {
+                        if ($record->reminder_sent_at || $record->committee_notified_at) {
+                            return 'warning';  // ส่งอีกครั้ง
+                        } else {
+                            return 'info';     // ส่งครั้งแรก
+                        }
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('ส่งการแจ้งเตือนใบตรวจรับ')
+                    ->modalDescription('คุณต้องการส่งการแจ้งเตือนใบตรวจรับนี้ให้คณะกรรมการตรวจสอบหรือไม่?')
+                    ->modalSubmitActionLabel('ส่งการแจ้งเตือน')
+                    ->action(function ($record) {
+                        $creator = \App\Models\User::find(auth()->id());
+                        
+                        if (!$record->inspection_committee_id) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('ไม่พบคณะกรรมการ')
+                                ->body('กรุณาเลือกคณะกรรมการตรวจสอบก่อนส่งการแจ้งเตือน')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+                        
+                        try {
+                            // Send email immediately (sync)
+                            $goodsReceipt = \App\Models\GoodsReceipt::with(['purchaseOrder', 'vendor', 'inspectionCommittee'])->find($record->id);
+                            
+                            if ($goodsReceipt->inspectionCommittee && $goodsReceipt->inspectionCommittee->email) {
+                                // Send to inspection committee
+                                \Illuminate\Support\Facades\Mail::to($goodsReceipt->inspectionCommittee->email)
+                                    ->send(new \App\Mail\GoodsReceiptNotificationMail($goodsReceipt, $creator));
+                                    
+                                // Send copy to creator if different email
+                                if ($creator->email !== $goodsReceipt->inspectionCommittee->email) {
+                                    \Illuminate\Support\Facades\Mail::to($creator->email)
+                                        ->send(new \App\Mail\GoodsReceiptNotificationMail($goodsReceipt, $creator, true));
+                                }
+                            }
+                            
+                            \Filament\Notifications\Notification::make()
+                                ->title('ส่งการแจ้งเตือนแล้ว')
+                                ->body('ส่งการแจ้งเตือนใบตรวจรับให้คณะกรรมการเรียบร้อยแล้ว')
+                                ->success()
+                                ->send();
+                                
+                            // Update reminder timestamp
+                            $record->update(['reminder_sent_at' => now()]);
+                            
+                        } catch (\Exception $e) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('เกิดข้อผิดพลาด')
+                                ->body('ไม่สามารถส่งการแจ้งเตือนได้: ' . $e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    })
+                    ->visible(fn ($record) => $record->inspection_committee_id !== null),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

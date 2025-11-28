@@ -12,9 +12,11 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 
-class SendPurchaseOrderApprovedNotification implements ShouldQueue
+class SendPurchaseOrderApprovedNotification
 {
-    use InteractsWithQueue;
+    // Removed ShouldQueue to send emails immediately
+    
+    private static $processedEvents = [];
 
     /**
      * Handle the event.
@@ -41,10 +43,14 @@ class SendPurchaseOrderApprovedNotification implements ShouldQueue
             // Use the connection info from the event
             $connectionName = $event->connectionName ?? 'mysql';
             
-            Log::info('PO Approval Event Debug Start', [
+            Log::info('🔥 DUPLICATE EMAIL DEBUG', [
                 'po_id' => $event->purchaseOrderId ?? 'NULL',
                 'approver_id' => $event->approverId ?? 'NULL',
                 'connection' => $connectionName,
+                'listener_class' => get_class($this),
+                'timestamp' => now()->toDateTimeString(),
+                'memory' => memory_get_usage(true),
+                'stack_trace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5)
             ]);
 
             $purchaseOrder = null;
@@ -249,71 +255,87 @@ class SendPurchaseOrderApprovedNotification implements ShouldQueue
                 // Continue sending email without delivery note attachment
             }
 
-            // Send email to PO creator
-            if ($purchaseOrder->creator && $purchaseOrder->creator->email) {
-                // Check if user wants to receive approval emails
-                if (($purchaseOrder->creator->email_po_approved ?? true) && ($purchaseOrder->creator->email_po_notifications ?? true)) {
-                    // Send email to the PO creator (requester) with PDF attachments
-                    Mail::to($purchaseOrder->creator->email)
+            // Send to inspection committee from PR (not PO directly)
+            $inspectionCommittee = null;
+            $committeeSource = 'none';
+            
+            // Try to get committee from PR first
+            if ($purchaseOrder->purchaseRequisition && $purchaseOrder->purchaseRequisition->inspection_committee_id) {
+                $inspectionCommittee = \App\Models\User::find($purchaseOrder->purchaseRequisition->inspection_committee_id);
+                $committeeSource = 'PR';
+            }
+            // Fallback to PO's own committee if PR not available
+            elseif ($purchaseOrder->inspectionCommittee) {
+                $inspectionCommittee = $purchaseOrder->inspectionCommittee;
+                $committeeSource = 'PO';
+            }
+            
+            if ($inspectionCommittee && $inspectionCommittee->email) {
+                try {
+                    Log::info('Attempting to send PO approval email to inspection committee', [
+                        'po_number' => $purchaseOrder->po_number,
+                        'recipient' => $inspectionCommittee->email,
+                        'committee_name' => $inspectionCommittee->name,
+                        'committee_source' => $committeeSource,
+                        'pr_id' => $purchaseOrder->purchase_requisition_id
+                    ]);
+                    
+                    // Send email to the inspection committee with PDF attachments
+                    Mail::to($inspectionCommittee->email)
                         ->send(new PurchaseOrderApprovedMail(
                             $purchaseOrder, 
                             $approver, 
-                            $purchaseOrder->creator, 
+                            $inspectionCommittee, 
                             $pdfContent, 
                             $pdfFilename,
                             $deliveryNotePdfContent,
                             $deliveryNotePdfFilename
                         ));
 
-                    Log::info('Purchase Order approved email sent with PDFs', [
+                    Log::info('📧 PO APPROVED EMAIL SENT - INSPECTION COMMITTEE', [
                         'po_number' => $purchaseOrder->po_number,
-                        'recipient' => $purchaseOrder->creator->email,
+                        'recipient' => $inspectionCommittee->email,
+                        'committee_name' => $inspectionCommittee->name,
+                        'committee_source' => $committeeSource,
                         'approver' => $approver->name,
                         'sow_pdf_attached' => $pdfContent !== null,
                         'delivery_note_pdf_attached' => $deliveryNotePdfContent !== null,
                     ]);
-                } else {
-                    Log::info('Purchase Order approved email skipped - user preferences disabled', [
+                } catch (\Exception $e) {
+                    Log::error('Failed to send PO approval email to inspection committee', [
                         'po_number' => $purchaseOrder->po_number,
-                        'recipient' => $purchaseOrder->creator->email,
-                        'email_po_approved' => $purchaseOrder->creator->email_po_approved ?? 'NULL',
-                        'email_po_notifications' => $purchaseOrder->creator->email_po_notifications ?? 'NULL',
+                        'recipient' => $inspectionCommittee->email,
+                        'error' => $e->getMessage()
                     ]);
                 }
             } else {
-                Log::warning('Cannot send approval email - creator not found or no email', [
+                Log::warning('Cannot send approval email - inspection committee not found or no email', [
                     'po_number' => $purchaseOrder->po_number,
-                    'creator_id' => $purchaseOrder->created_by,
+                    'po_inspection_committee_id' => $purchaseOrder->inspection_committee_id,
+                    'pr_inspection_committee_id' => $purchaseOrder->purchaseRequisition?->inspection_committee_id ?? 'null',
+                    'pr_id' => $purchaseOrder->purchase_requisition_id,
                 ]);
             }
 
-            // Send notification to vendor - Use both approaches to find email
+            // Send notification to vendor (handle different schemas)
             $vendorEmail = '';
             $vendorName = '';
             
-            // Try multiple approaches to find vendor email
-            if ($purchaseOrder->vendor_contact) {
-                // First: Check vendor_contact field (direct field)
-                $vendorEmail = $purchaseOrder->vendor_contact;
-                $vendorName = $purchaseOrder->vendor_name;
-            } elseif ($purchaseOrder->contact_email) {
-                // Second: Check contact_email field
-                $vendorEmail = $purchaseOrder->contact_email;
-                $vendorName = $purchaseOrder->vendor_name;
-            } elseif ($purchaseOrder->vendor && $purchaseOrder->vendor->contact_email) {
-                // Third: Check vendor relationship
+            // Try vendor relationship first (modern schema)
+            if ($purchaseOrder->vendor && $purchaseOrder->vendor->contact_email) {
                 $vendorEmail = $purchaseOrder->vendor->contact_email;
                 $vendorName = $purchaseOrder->vendor->company_name;
+            } 
+            // Fallback to vendor_contact field (legacy schema)
+            elseif (isset($purchaseOrder->vendor_contact) && $purchaseOrder->vendor_contact) {
+                $vendorEmail = $purchaseOrder->vendor_contact;
+                $vendorName = $purchaseOrder->vendor_name ?? 'Vendor';
             }
-            
-            Log::info('Vendor email detection result', [
-                'po_number' => $purchaseOrder->po_number,
-                'vendor_contact_field' => $purchaseOrder->vendor_contact ?? 'NULL',
-                'contact_email_field' => $purchaseOrder->contact_email ?? 'NULL',
-                'vendor_relation_email' => $purchaseOrder->vendor?->contact_email ?? 'NULL',
-                'final_vendor_email' => $vendorEmail,
-                'final_vendor_name' => $vendorName,
-            ]);
+            // Fallback to contact_email field (backup)
+            elseif (isset($purchaseOrder->contact_email) && $purchaseOrder->contact_email) {
+                $vendorEmail = $purchaseOrder->contact_email;
+                $vendorName = $purchaseOrder->vendor_name ?? 'Vendor';
+            }
 
             if ($vendorEmail) {
                 try {
@@ -417,8 +439,9 @@ class SendPurchaseOrderApprovedNotification implements ShouldQueue
 
         } catch (\Exception $e) {
             Log::error('Failed to send Purchase Order approved email', [
-                'po_number' => $event->purchaseOrder->po_number,
+                'po_id' => $event->purchaseOrderId,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             // Don't re-throw the exception to prevent job failure

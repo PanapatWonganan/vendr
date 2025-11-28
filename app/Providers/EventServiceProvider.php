@@ -3,12 +3,14 @@
 namespace App\Providers;
 
 use App\Events\GoodsReceiptCreated;
+use App\Events\PaymentMilestonePaid;
 use App\Events\PurchaseOrderApproved;
 use App\Events\PurchaseOrderRejected;
 use App\Events\PurchaseRequisitionApproved;
 use App\Events\PurchaseRequisitionRejected;
 use App\Events\PurchaseRequisitionSubmitted;
 use App\Listeners\SendGoodsReceiptNotification;
+use App\Listeners\SendPaymentMilestoneNotification;
 use App\Listeners\SendPurchaseOrderApprovedNotification;
 use App\Listeners\SendPurchaseOrderRejectedNotification;
 use App\Listeners\SendPurchaseRequisitionApprovedNotification;
@@ -75,6 +77,13 @@ class EventServiceProvider extends ServiceProvider
         
         Event::listen(GoodsReceiptCreated::class, function ($event) {
             $listener = app(SendGoodsReceiptNotification::class);
+            dispatch(function () use ($event, $listener) {
+                $listener->handle($event);
+            });
+        });
+        
+        Event::listen(PaymentMilestonePaid::class, function ($event) {
+            $listener = app(SendPaymentMilestoneNotification::class);
             dispatch(function () use ($event, $listener) {
                 $listener->handle($event);
             });

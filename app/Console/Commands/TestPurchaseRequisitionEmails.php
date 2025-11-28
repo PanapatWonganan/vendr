@@ -81,7 +81,15 @@ class TestPurchaseRequisitionEmails extends Command
                 event(new PurchaseRequisitionApproved($pr, $testUser));
                 $this->info("✅ Approval email event dispatched successfully!");
             } elseif ($type === 'rejected') {
-                event(new PurchaseRequisitionRejected($pr, $testUser, 'Testing rejection email notification system'));
+                // Update PR with rejection reason first
+                $pr->update([
+                    'rejection_notes' => 'Testing rejection email notification system',
+                    'status' => 'rejected',
+                    'rejected_by' => $testUser->id,
+                    'rejected_at' => now(),
+                ]);
+                
+                event(new PurchaseRequisitionRejected($pr, $testUser));
                 $this->info("✅ Rejection email event dispatched successfully!");
             }
 

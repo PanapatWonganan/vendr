@@ -24,17 +24,30 @@ class CreateDirectPurchaseMedium extends CreateRecord
         $data['prepared_by_id'] = auth()->id();
         $data['created_by'] = auth()->id(); // Required field
         $data['pr_type'] = 'direct_medium'; // ≤ 100,000
-        $data['requires_po'] = true;
+        // $data['requires_po'] = true; // Field removed from database
         $data['status'] = 'draft';
         $data['total_amount'] = 0; // Will be calculated from items
         
-        // Ensure all items have required fields and validate totals
+        // Strict validation for all items and totals
         $totalAmount = 0;
         if (isset($data['items'])) {
-            foreach ($data['items'] as &$item) {
+            foreach ($data['items'] as $index => &$item) {
+                // Set defaults
                 $item['unit_of_measure'] = $item['unit_of_measure'] ?? 'ชิ้น';
-                $item['estimated_unit_price'] = $item['estimated_unit_price'] ?? 0;
-                $item['estimated_amount'] = $item['estimated_amount'] ?? 0;
+                $item['estimated_unit_price'] = floatval($item['estimated_unit_price'] ?? 0);
+                $item['quantity'] = floatval($item['quantity'] ?? 0);
+                
+                // Recalculate amount to prevent manipulation
+                $calculatedAmount = $item['quantity'] * $item['estimated_unit_price'];
+                $item['estimated_amount'] = $calculatedAmount;
+                
+                // Log for debugging
+                \Log::info('PR Medium Item Calculation', [
+                    'description' => $item['description'],
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $item['estimated_unit_price'],
+                    'calculated_amount' => $calculatedAmount
+                ]);
                 
                 // Validate individual item amount - strictly NO MORE than 100,000
                 if ($calculatedAmount > 100000.00) {
@@ -51,7 +64,7 @@ class CreateDirectPurchaseMedium extends CreateRecord
                     );
                 }
                 
-                $totalAmount += $item['estimated_amount'];
+                $totalAmount += $calculatedAmount;
             }
             
             // Strict total validation - NO MORE than 100,000
@@ -347,7 +360,32 @@ class CreateDirectPurchaseMedium extends CreateRecord
                         ->reorderable()
                         ->addActionLabel('เพิ่มรายการ')
                         ->minItems(1)
-                        ->required(),
+                        ->required()
+                        ->afterStateUpdated(function (Forms\Get $get, Forms\Set $set) {
+                            // Calculate total and validate
+                            $items = $get('items') ?? [];
+                            $total = 0;
+                            
+                            foreach ($items as $item) {
+                                $total += $item['estimated_amount'] ?? 0;
+                            }
+                            
+                            if ($total > 100000) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('เกินวงเงินรวม 100,000 บาท')
+                                    ->body('ยอดรวมทั้งหมด: ' . number_format($total, 2) . ' บาท')
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
+                            } elseif ($total <= 10000 && $total > 0) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title('ยอดเงินต่ำ')
+                                    ->body('ยอดรวม ' . number_format($total, 2) . ' บาท ≤ 10,000 บาท ควรใช้แบบฟอร์มจัดซื้อตรง ≤ 10,000 บาท')
+                                    ->warning()
+                                    ->send();
+                            }
+                        })
+                        ->live(),
                 ]),
         ];
     }

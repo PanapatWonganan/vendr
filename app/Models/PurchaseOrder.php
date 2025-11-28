@@ -19,6 +19,7 @@ class PurchaseOrder extends BaseModel
         'sap_po_number',
         'po_title',
         'work_type',
+        'form_category',
         'procurement_method',
         'vendor_id',
         'inspection_committee_id',
@@ -41,11 +42,13 @@ class PurchaseOrder extends BaseModel
         'updated_by',
         'approved_by',
         // Original fields (keeping for compatibility)
-        'supplier_id', 
+        'supplier_id',
         'delivery_address',
         'department_id',
         'shipping_method',
         'subtotal',
+        'discount_amount',
+        'discount_reason',
         'tax_amount',
         'shipping_cost',
         'other_charges',
@@ -68,12 +71,16 @@ class PurchaseOrder extends BaseModel
         'area_size',
         'document_code',
         'sow_metadata',
+        // SLA tracking fields
+        'po_created_at',
+        'po_approved_at',
     ];
 
     protected $casts = [
         'order_date' => 'date',
         'expected_delivery_date' => 'date',
         'subtotal' => 'decimal:2',
+        'discount_amount' => 'decimal:2',
         'tax_amount' => 'decimal:2',
         'shipping_cost' => 'decimal:2',
         'other_charges' => 'decimal:2',
@@ -86,6 +93,8 @@ class PurchaseOrder extends BaseModel
         'rejected_at' => 'datetime',
         'approval_history' => 'array',
         'is_confirmed' => 'boolean',
+        'po_created_at' => 'datetime',
+        'po_approved_at' => 'datetime',
         // SOW field casts
         'start_date' => 'date',
         'end_date' => 'date',
@@ -373,6 +382,14 @@ class PurchaseOrder extends BaseModel
     public function paymentMilestones(): HasMany
     {
         return $this->hasMany(PaymentMilestone::class)->orderBy('milestone_number');
+    }
+
+    /**
+     * Get the SLA tracking records for the purchase order.
+     */
+    public function slaTrackings(): HasMany
+    {
+        return $this->hasMany(SlaTracking::class);
     }
 
     /**

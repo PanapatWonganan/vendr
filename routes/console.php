@@ -8,18 +8,10 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Schedule delivery reminders
-Schedule::command('delivery:send-reminders --days=15')
+// Schedule PO delivery reminders (runs once daily and checks multiple day ranges)
+Schedule::command('delivery:send-reminders')
     ->dailyAt('09:00')
-    ->description('Send 15-day delivery reminders');
-
-Schedule::command('delivery:send-reminders --days=7') 
-    ->dailyAt('09:15')
-    ->description('Send 7-day delivery reminders');
-
-Schedule::command('delivery:send-reminders --days=1')
-    ->dailyAt('09:30') 
-    ->description('Send 1-day delivery reminders');
+    ->description('Send PO delivery reminders for 7, 3, and 1 day warnings');
 
 // Schedule GR (Goods Receipt) reminders
 Schedule::command('gr:send-reminders --days=15')

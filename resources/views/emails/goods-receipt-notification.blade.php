@@ -24,7 +24,7 @@
 @endif
 
 @if($supplier)
-**ผู้ขาย:** {{ $supplier->name }}  
+**ผู้ขาย:** {{ $supplier->company_name ?? $supplier->name }}  
 @endif
 
 **สถานะตรวจสอบ:** 

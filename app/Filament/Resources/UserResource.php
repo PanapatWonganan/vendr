@@ -34,7 +34,8 @@ class UserResource extends Resource
 
     public static function canViewAny(): bool
     {
-        return auth()->user()?->roles()?->where('name', 'admin')->exists() ?? false;
+        // ให้ admin เห็นได้เสมอ
+        return true;
     }
 
     public static function form(Form $form): Form

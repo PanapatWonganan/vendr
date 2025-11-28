@@ -89,17 +89,6 @@
                 เข้าสู่ระบบ
             </button>
         </form>
-
-        <!-- Additional Links -->
-        <div class="mt-6 text-center text-sm text-gray-600">
-            <p>ยังไม่มีบัญชี? 
-                @if (Route::has('register'))
-                    <a href="{{ route('register') }}" class="text-blue-600 hover:text-blue-700 hover:underline font-medium">
-                        สมัครสมาชิก
-                    </a>
-                @endif
-            </p>
-        </div>
     </div>
 </div>
 @endsection

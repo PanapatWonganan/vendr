@@ -24,7 +24,7 @@ class PurchaseOrderResource extends Resource
     protected static ?string $modelLabel = 'ใบสั่งซื้อ';
     protected static ?string $pluralModelLabel = 'ใบสั่งซื้อ';
     protected static ?string $navigationGroup = 'Procurement Management';
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 6;
     
     public static function getNavigationBadge(): ?string
     {
@@ -53,36 +53,7 @@ class PurchaseOrderResource extends Resource
     
     public static function getNavigationItems(): array
     {
-        $items = [
-            ...parent::getNavigationItems(),
-        ];
-
-        // Add Pending Approvals menu item for authorized users
-        $user = auth()->user();
-        if ($user && ($user->hasRole('admin') || 
-                     $user->hasRole('procurement_manager') || 
-                     $user->hasRole('department_head'))) {
-            
-            $pendingCount = static::getModel()::where('status', 'pending_approval');
-            
-            if (!$user->hasRole('admin') && !$user->hasRole('procurement_manager')) {
-                if ($user->hasRole('department_head') && $user->department_id) {
-                    $pendingCount->where('department_id', $user->department_id);
-                }
-            }
-            
-            $count = $pendingCount->count();
-            
-            $items[] = \Filament\Navigation\NavigationItem::make('POs Pending Approval')
-                ->icon('heroicon-o-clock')
-                ->isActiveWhen(fn () => request()->routeIs('filament.admin.resources.purchase-orders.pending-approvals'))
-                ->badge($count > 0 ? $count : null, color: 'warning')
-                ->sort(2)
-                ->url(static::getUrl('pending-approvals'))
-                ->group('Procurement Management');
-        }
-
-        return $items;
+        return parent::getNavigationItems();
     }
 
     public static function form(Form $form): Form
@@ -107,12 +78,13 @@ class PurchaseOrderResource extends Resource
                                 ->helperText('สำหรับเลข PO ที่มาจากภายนอก/SAP'),
                         ]),
 
-                        Forms\Components\Grid::make(2)->schema([
-                            Forms\Components\TextInput::make('po_title')
-                                ->label('ชื่องาน')
-                                ->required()
-                                ->maxLength(255),
+                        Forms\Components\TextInput::make('po_title')
+                            ->label('ชื่องาน')
+                            ->required()
+                            ->maxLength(255)
+                            ->columnSpanFull(),
 
+                        Forms\Components\Grid::make(2)->schema([
                             Forms\Components\Select::make('work_type')
                                 ->label('ประเภทของงาน')
                                 ->required()
@@ -121,6 +93,15 @@ class PurchaseOrderResource extends Resource
                                     'hire' => 'จ้าง',
                                     'rent' => 'เช่า',
                                 ]),
+
+                            Forms\Components\Select::make('form_category')
+                                ->label('แบบฟอร์ม')
+                                ->options([
+                                    'act_based' => 'แบบฟอร์มตาม พรบ',
+                                    'law_based' => 'แบบฟอร์มตามกฎหมาย',
+                                ])
+                                ->searchable()
+                                ->placeholder('เลือกประเภทแบบฟอร์ม'),
                         ]),
 
                         Forms\Components\Select::make('procurement_method')
@@ -223,26 +204,46 @@ class PurchaseOrderResource extends Resource
                         ]),
 
                         Forms\Components\Grid::make(3)->schema([
-                            Forms\Components\TextInput::make('subtotal')
-                                ->label('ยอดรวม (ไม่รวม VAT)')
+                            Forms\Components\TextInput::make('items_total')
+                                ->label('ยอดรวมจากรายการสินค้า')
+                                ->numeric()
+                                ->prefix('฿')
+                                ->default(0.00)
+                                ->readonly()
+                                ->dehydrated(false)
+                                ->helperText('คำนวณอัตโนมัติจากรายการสินค้า'),
+
+                            Forms\Components\TextInput::make('discount_amount')
+                                ->label('ส่วนลด/ปรับราคา')
                                 ->numeric()
                                 ->prefix('฿')
                                 ->default(0.00)
                                 ->step(0.01)
                                 ->minValue(0)
                                 ->live(onBlur: true)
-                                ->helperText('สามารถแก้ไขได้ หากทางจัดซื้อต่อรองราคาได้')
-                                ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                    if (is_numeric($state)) {
-                                        $subtotal = (float) $state;
-                                        $taxAmount = $subtotal * 0.07;
-                                        $totalAmount = $subtotal + $taxAmount;
-                                        
-                                        $set('tax_amount', round($taxAmount, 2));
-                                        $set('total_amount', round($totalAmount, 2));
-                                    }
+                                ->helperText('กรอกจำนวนส่วนลดที่ได้จากการต่อรอง')
+                                ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                    static::updatePOTotals($get, $set);
                                 }),
 
+                            Forms\Components\TextInput::make('subtotal')
+                                ->label('ยอดสุทธิ (ไม่รวม VAT)')
+                                ->numeric()
+                                ->prefix('฿')
+                                ->default(0.00)
+                                ->readonly()
+                                ->dehydrated(true)
+                                ->helperText('= ยอดรวมสินค้า - ส่วนลด'),
+                        ]),
+
+                        Forms\Components\Textarea::make('discount_reason')
+                            ->label('เหตุผลการลดราคา/ปรับราคา')
+                            ->rows(2)
+                            ->placeholder('เช่น ต่อรองราคาได้, โปรโมชั่นพิเศษ, ส่วนลดปริมาณ')
+                            ->visible(fn (Forms\Get $get) => (float) ($get('discount_amount') ?? 0) > 0)
+                            ->columnSpanFull(),
+
+                        Forms\Components\Grid::make(2)->schema([
                             Forms\Components\TextInput::make('tax_amount')
                                 ->label('VAT 7%')
                                 ->numeric()
@@ -259,14 +260,14 @@ class PurchaseOrderResource extends Resource
                                 ->readonly()
                                 ->dehydrated(true),
                         ]),
-                        
+
                         Forms\Components\Actions::make([
                             Forms\Components\Actions\Action::make('recalculate_from_items')
                                 ->label('คำนวณใหม่จากรายการสินค้า')
                                 ->icon('heroicon-o-calculator')
                                 ->color('info')
                                 ->action(function (Forms\Get $get, Forms\Set $set) {
-                                    static::updatePOTotals($get, $set, true);
+                                    static::updatePOTotals($get, $set);
                                 })
                                 ->visible(fn (Forms\Get $get) => count($get('items') ?? []) > 0),
                         ]),
@@ -344,7 +345,7 @@ class PurchaseOrderResource extends Resource
                                         ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
                                             $unitPrice = (float) ($get('unit_price') ?? 0);
                                             $quantity = (float) ($state ?? 0);
-                                            $set('total_price', $quantity * $unitPrice);
+                                            $set('line_total', $quantity * $unitPrice);
                                             // Ensure status is set
                                             if (!$get('status')) {
                                                 $set('status', 'ordered');
@@ -369,15 +370,15 @@ class PurchaseOrderResource extends Resource
                                         ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
                                             $quantity = (float) ($get('quantity') ?? 0);
                                             $unitPrice = (float) ($state ?? 0);
-                                            $set('total_price', $quantity * $unitPrice);
+                                            $set('line_total', $quantity * $unitPrice);
                                             // Ensure status is set
                                             if (!$get('status')) {
                                                 $set('status', 'ordered');
                                             }
                                             static::updatePOTotals($get, $set);
                                         }),
-                                        
-                                    Forms\Components\TextInput::make('total_price')
+
+                                    Forms\Components\TextInput::make('line_total')
                                         ->label('รวม')
                                         ->numeric()
                                         ->prefix('฿')
@@ -516,32 +517,39 @@ class PurchaseOrderResource extends Resource
             ]);
     }
 
-    public static function updatePOTotals(Forms\Get $get, Forms\Set $set, $forceOverwriteSubtotal = true)
+    public static function updatePOTotals(Forms\Get $get, Forms\Set $set)
     {
         $items = $get('items') ?? [];
-        
-        $calculatedSubtotal = 0.0;
-        
+
+        // Calculate total from items (ยอดรวมจากรายการสินค้า)
+        $itemsTotal = 0.0;
         foreach ($items as $item) {
-            $itemSubtotal = (float) ($item['total_price'] ?? 0);
-            $calculatedSubtotal += $itemSubtotal;
+            $itemTotal = (float) ($item['line_total'] ?? $item['total_price'] ?? 0);
+            $itemsTotal += $itemTotal;
         }
-        
-        // Use current subtotal if manually edited and not forcing overwrite
-        $currentSubtotal = (float) ($get('subtotal') ?? 0);
-        $useSubtotal = $forceOverwriteSubtotal ? $calculatedSubtotal : 
-                       ($currentSubtotal > 0 ? $currentSubtotal : $calculatedSubtotal);
-        
+
+        // Get discount amount (ส่วนลด/ปรับราคา)
+        $discountAmount = (float) ($get('discount_amount') ?? 0);
+
+        // Calculate subtotal (ยอดสุทธิ = ยอดรวมสินค้า - ส่วนลด)
+        $subtotal = $itemsTotal - $discountAmount;
+
+        // Ensure subtotal is not negative
+        if ($subtotal < 0) {
+            $subtotal = 0;
+        }
+
         // Calculate 7% VAT
-        $totalTax = $useSubtotal * 0.07;
-        
-        // Calculate grand total
-        $grandTotal = $useSubtotal + $totalTax;
-        
+        $taxAmount = $subtotal * 0.07;
+
+        // Calculate grand total (ยอดรวมทั้งสิ้น = ยอดสุทธิ + VAT)
+        $totalAmount = $subtotal + $taxAmount;
+
         // Update form fields with proper rounding
-        $set('subtotal', round($useSubtotal, 2));
-        $set('tax_amount', round($totalTax, 2));
-        $set('total_amount', round($grandTotal, 2));
+        $set('items_total', round($itemsTotal, 2));
+        $set('subtotal', round($subtotal, 2));
+        $set('tax_amount', round($taxAmount, 2));
+        $set('total_amount', round($totalAmount, 2));
     }
 
     public static function table(Table $table): Table
@@ -567,6 +575,19 @@ class PurchaseOrderResource extends Resource
                 Tables\Columns\TextColumn::make('department.name')
                     ->label('Department')
                     ->sortable(),
+
+                Tables\Columns\BadgeColumn::make('form_category')
+                    ->label('แบบฟอร์ม')
+                    ->formatStateUsing(fn ($state) => match($state) {
+                        'act_based' => 'แบบฟอร์มตาม พรบ',
+                        'law_based' => 'แบบฟอร์มตามกฎหมาย',
+                        default => $state,
+                    })
+                    ->colors([
+                        'info' => 'act_based',
+                        'warning' => 'law_based',
+                    ])
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
@@ -628,8 +649,7 @@ class PurchaseOrderResource extends Resource
                         'delivered' => 'Delivered',
                         'completed' => 'Completed',
                         'cancelled' => 'Cancelled',
-                    ])
-                    ->default('pending_approval'),
+                    ]),
                     
                 Tables\Filters\SelectFilter::make('vendor_id')
                     ->relationship(

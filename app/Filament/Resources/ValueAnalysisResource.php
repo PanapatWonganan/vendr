@@ -18,9 +18,10 @@ class ValueAnalysisResource extends Resource
     protected static ?string $model = ValueAnalysis::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
-    protected static ?string $navigationLabel = 'Value Analysis';
+    protected static ?string $navigationLabel = 'Vendor Approve';
+    protected static ?string $pluralModelLabel = 'Vendor Approve';
     protected static ?string $navigationGroup = 'Procurement Management';
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 7;
 
     public static function form(Form $form): Form
     {

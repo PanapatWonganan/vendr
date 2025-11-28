@@ -17,7 +17,7 @@ class GoodsReceipt extends BaseModel
         'gr_number',
         'receipt_number',
         'purchase_order_id',
-        'supplier_id',
+        'vendor_id',
         'inspection_committee_id',
         'receipt_date',
         'delivery_milestone',
@@ -105,6 +105,11 @@ class GoodsReceipt extends BaseModel
     public function supplier(): BelongsTo
     {
         return $this->belongsTo(Supplier::class, 'supplier_id');
+    }
+
+    public function vendor(): BelongsTo
+    {
+        return $this->belongsTo(Vendor::class, 'vendor_id');
     }
 
     public function inspectionCommittee(): BelongsTo

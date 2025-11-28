@@ -55,7 +55,7 @@ class GoodsReceiptNotificationMail extends Mailable
                 'creator' => $this->creator,
                 'isCreatorCopy' => $this->isCreatorCopy,
                 'purchaseOrder' => $this->goodsReceipt->purchaseOrder,
-                'supplier' => $this->goodsReceipt->supplier,
+                'supplier' => $this->goodsReceipt->vendor, // Using vendor as supplier for backward compatibility
                 'inspectionCommittee' => $this->goodsReceipt->inspectionCommittee,
             ]
         );

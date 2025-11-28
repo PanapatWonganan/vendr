@@ -20,7 +20,8 @@ class PurchaseRequisitionResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
     protected static ?string $navigationLabel = 'Purchase Requisitions (PR)';
     protected static ?string $navigationGroup = 'Procurement Management';
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 3;
+    
 
     public static function getEloquentQuery(): Builder
     {
@@ -55,12 +56,18 @@ class PurchaseRequisitionResource extends Resource
                                 ->placeholder('Brief description of the request'),
                         ]),
 
-                        Forms\Components\Grid::make(3)->schema([
+                        Forms\Components\Grid::make(4)->schema([
                             Forms\Components\Select::make('category')
                                 ->label('Category')
                                 ->required()
                                 ->options(PurchaseRequisition::getCategoryOptions())
                                 ->searchable(),
+
+                            Forms\Components\Select::make('form_category')
+                                ->label('แบบฟอร์ม')
+                                ->options(PurchaseRequisition::getFormCategoryOptions())
+                                ->searchable()
+                                ->placeholder('เลือกประเภทแบบฟอร์ม'),
 
                             Forms\Components\Select::make('work_type')
                                 ->label('Work Type')
@@ -417,6 +424,15 @@ class PurchaseRequisitionResource extends Resource
                 Tables\Columns\TextColumn::make('requester.name')
                     ->label('Requester')
                     ->sortable(),
+
+                Tables\Columns\BadgeColumn::make('form_category')
+                    ->label('แบบฟอร์ม')
+                    ->formatStateUsing(fn ($state) => PurchaseRequisition::getFormCategoryOptions()[$state] ?? $state)
+                    ->colors([
+                        'info' => 'act_based',
+                        'warning' => 'law_based',
+                    ])
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')

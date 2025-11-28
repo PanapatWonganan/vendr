@@ -2,9 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Models\PurchaseOrder;
-use App\Models\PurchaseRequisition;
 use App\Mail\DeliveryReminderMail;
+use App\Models\PurchaseOrder;
+use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
 
@@ -15,125 +16,95 @@ class SendDeliveryReminders extends Command
      *
      * @var string
      */
-    protected $signature = 'delivery:send-reminders 
-                            {--days=15 : Number of days before delivery date to send reminder}
-                            {--dry-run : Show what would be sent without actually sending}';
+    protected $signature = 'delivery:send-reminders';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Send delivery reminder emails 15 days before expected delivery date';
+    protected $description = 'Send delivery reminder emails for upcoming PO deliveries';
 
     /**
      * Execute the console command.
      */
     public function handle()
     {
-        $days = (int) $this->option('days');
-        $dryRun = $this->option('dry-run');
-        
-        $this->info("Checking for deliveries due in {$days} days...");
-        
-        $targetDate = now()->addDays($days)->startOfDay();
-        $this->line("Target date: " . $targetDate->format('Y-m-d'));
-        
-        // Check Purchase Orders
-        $pos = PurchaseOrder::whereNotNull('expected_delivery_date')
-            ->whereDate('expected_delivery_date', $targetDate->toDateString())
-            ->where('status', 'approved')
-            ->with(['vendor', 'purchaseRequisition.requester', 'purchaseRequisition.inspectionCommittee'])
-            ->get();
-            
-        $this->info("Found " . $pos->count() . " PO(s) with delivery due in {$days} days");
-        
-        foreach ($pos as $po) {
-            $this->line("- PO: {$po->po_number} (Expected: {$po->expected_delivery_date->format('d/m/Y')})");
-            
-            if (!$dryRun) {
-                $this->sendPOReminder($po, $days);
+        $this->info('Starting to send delivery reminders...');
+
+        // Get POs that are due in 7, 3, and 1 days
+        $reminderDays = [7, 3, 1];
+
+        foreach ($reminderDays as $days) {
+            $targetDate = Carbon::now()->addDays($days)->startOfDay();
+            $targetDateEnd = Carbon::now()->addDays($days)->endOfDay();
+
+            $purchaseOrders = PurchaseOrder::whereBetween('expected_delivery_date', [$targetDate, $targetDateEnd])
+                ->whereIn('status', ['approved', 'in_progress'])
+                ->with(['vendor', 'company', 'purchaseRequisition.user'])
+                ->get();
+
+            foreach ($purchaseOrders as $po) {
+                $this->sendReminders($po, $days);
             }
+
+            $this->info("Sent reminders for POs due in {$days} days: {$purchaseOrders->count()} POs");
         }
-        
-        // Check Purchase Requisitions (for direct purchases)
-        $prs = PurchaseRequisition::whereNotNull('required_date')
-            ->whereDate('required_date', $targetDate->toDateString())
-            ->whereIn('status', ['approved', 'pending'])
-            ->whereNull('approved_at') // Not yet converted to PO
-            ->with(['requester', 'inspectionCommittee'])
+
+        // Check for overdue POs
+        $overduePOs = PurchaseOrder::where('expected_delivery_date', '<', Carbon::now()->startOfDay())
+            ->whereIn('status', ['approved', 'in_progress'])
+            ->with(['vendor', 'company', 'purchaseRequisition.user'])
             ->get();
-            
-        $this->info("Found " . $prs->count() . " PR(s) with required date due in {$days} days");
-        
-        foreach ($prs as $pr) {
-            $this->line("- PR: {$pr->pr_number} (Required: {$pr->required_date->format('d/m/Y')})");
-            
-            if (!$dryRun) {
-                $this->sendPRReminder($pr, $days);
-            }
+
+        foreach ($overduePOs as $po) {
+            $daysOverdue = Carbon::now()->diffInDays($po->expected_delivery_date);
+            $this->sendReminders($po, -$daysOverdue);
         }
-        
-        if ($dryRun) {
-            $this->warn("This was a dry run. No emails were sent.");
-        } else {
-            $this->info("Delivery reminders sent successfully!");
-        }
-        
-        return 0;
+
+        $this->info("Sent reminders for overdue POs: {$overduePOs->count()} POs");
+        $this->info('Delivery reminders sent successfully!');
+
+        return Command::SUCCESS;
     }
-    
-    private function sendPOReminder(PurchaseOrder $po, int $days)
+
+    private function sendReminders(PurchaseOrder $po, int $days)
     {
         $recipients = collect();
-        
-        // Add PO creator/requester
-        if ($po->purchaseRequisition && $po->purchaseRequisition->requester) {
-            $recipients->push($po->purchaseRequisition->requester);
+
+        // Add PR creator
+        if ($po->purchaseRequisition && $po->purchaseRequisition->user) {
+            $recipients->push($po->purchaseRequisition->user);
         }
-        
-        // Add inspection committee
-        if ($po->purchaseRequisition && $po->purchaseRequisition->inspectionCommittee) {
-            $recipients->push($po->purchaseRequisition->inspectionCommittee);
+
+        // Add procurement team - simplified query
+        try {
+            $procurementUsers = User::whereHas('roles', function ($query) {
+                $query->whereIn('name', ['procurement', 'super_admin']);
+            })->get();
+            $recipients = $recipients->merge($procurementUsers);
+        } catch (\Exception $e) {
+            $this->warn("Could not fetch procurement users: " . $e->getMessage());
         }
-        
-        // Send to unique recipients
-        $recipients->unique('email')->each(function ($user) use ($po, $days) {
-            try {
-                Mail::to($user->email)->send(
-                    new DeliveryReminderMail($po, $user, $days, 'purchase_order')
-                );
-                $this->line("  → Sent to: {$user->name} ({$user->email})");
-            } catch (\Exception $e) {
-                $this->error("  → Failed to send to {$user->email}: " . $e->getMessage());
+
+        // Remove duplicates
+        $recipients = $recipients->unique('id');
+
+        // If no recipients found, try to send to admin
+        if ($recipients->isEmpty()) {
+            $adminUser = User::where('email', 'admin@innobic.com')->first();
+            if ($adminUser) {
+                $recipients->push($adminUser);
             }
-        });
-    }
-    
-    private function sendPRReminder(PurchaseRequisition $pr, int $days)
-    {
-        $recipients = collect();
-        
-        // Add PR requester
-        if ($pr->requester) {
-            $recipients->push($pr->requester);
         }
-        
-        // Add inspection committee
-        if ($pr->inspectionCommittee) {
-            $recipients->push($pr->inspectionCommittee);
-        }
-        
-        // Send to unique recipients
-        $recipients->unique('email')->each(function ($user) use ($pr, $days) {
+
+        foreach ($recipients as $user) {
             try {
-                Mail::to($user->email)->send(
-                    new DeliveryReminderMail($pr, $user, $days, 'purchase_requisition')
-                );
-                $this->line("  → Sent to: {$user->name} ({$user->email})");
+                Mail::to($user->email)->send(new DeliveryReminderMail($po, $user, $days, 'purchase_order'));
+                $this->info("Reminder sent to: {$user->email} for PO: {$po->po_number}");
             } catch (\Exception $e) {
-                $this->error("  → Failed to send to {$user->email}: " . $e->getMessage());
+                $this->error("Failed to send reminder to {$user->email}: " . $e->getMessage());
             }
-        });
+        }
     }
 }

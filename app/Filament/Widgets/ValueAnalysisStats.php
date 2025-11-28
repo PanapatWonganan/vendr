@@ -12,7 +12,7 @@ class ValueAnalysisStats extends BaseWidget
 
     protected function getStats(): array
     {
-        $companyId = session('company_id') ?: 2;
+        $companyId = session('company_id') ?: 1;
 
         // Get Purchase Requisitions for this company to filter VAs
         $prIds = \App\Models\PurchaseRequisition::where('company_id', $companyId)->pluck('id');
@@ -78,8 +78,16 @@ class ValueAnalysisStats extends BaseWidget
                 ->descriptionIcon('heroicon-m-document-text')
                 ->color('primary'),
 
-            Stat::make('ประหยัดรวม', number_format($totalSavings / 1000000, 2) . ' ล้านบาท')
-                ->description('จากงบ ' . number_format($totalBudget / 1000000, 1) . ' ล้านบาท')
+            Stat::make('ประหยัดรวม', 
+                $totalSavings >= 1000000 
+                    ? number_format($totalSavings / 1000000, 2) . ' ล้านบาท'
+                    : number_format($totalSavings) . ' บาท'
+            )
+                ->description('จากงบ ' . 
+                    ($totalBudget >= 1000000 
+                        ? number_format($totalBudget / 1000000, 1) . ' ล้านบาท'
+                        : number_format($totalBudget) . ' บาท')
+                )
                 ->descriptionIcon('heroicon-m-banknotes')
                 ->color('success'),
 

@@ -39,6 +39,17 @@ Route::middleware(['auth', CompanyMiddleware::class])->group(function () {
     Route::get('/pr-attachments/{attachment}/download', [PurchaseRequisitionController::class, 'downloadAttachment'])
         ->name('pr-attachments.download');
     
+    // Knowledge Base routes
+    Route::get('/admin/knowledge-articles/{article}/view', function (App\Models\KnowledgeArticle $article) {
+        $article->incrementViews();
+        return view('knowledge-article-view', compact('article'));
+    })->name('knowledge.view');
+    
+    Route::post('/admin/knowledge-articles/{article}/increment-views', function (App\Models\KnowledgeArticle $article) {
+        $article->incrementViews();
+        return response()->json(['success' => true]);
+    })->name('knowledge.increment-views');
+    
     // Note: GR/MR now managed via Filament Admin Panel only
 });
 

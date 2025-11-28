@@ -57,6 +57,7 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 CompanySelector::class,
                 \App\Filament\Widgets\DashboardStatsOverview::class,
+                \App\Filament\Widgets\SlaPerformanceOverview::class,
                 \App\Filament\Widgets\VendorGradeStats::class,
                 \App\Filament\Widgets\VendorGradeApexChart::class,
                 \App\Filament\Widgets\ValueAnalysisStats::class,
@@ -82,34 +83,44 @@ class AdminPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
             ])
+            ->navigationGroups([
+                'Procurement Management',
+                'Milestone Management',
+                'Contract Management',
+                'Master Data',
+                'Master Data (ข้อมูลหลัก)',
+                'Reports & Analytics',
+                'System Management (จัดการระบบ)',
+                'User Management (จัดการผู้ใช้)',
+            ])
             ->plugins([
                 FilamentFullCalendarPlugin::make(),
                 \Leandrocfe\FilamentApexCharts\FilamentApexChartsPlugin::make(),
             ])
             ->navigationItems([
-                NavigationItem::make('จัดซื้อตรง ≤ 10,000 บาท')
-                    ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('create-direct-small'))
-                    ->icon('heroicon-o-shopping-cart')
-                    ->group('Procurement Management')
-                    ->sort(10),
-                NavigationItem::make('จัดซื้อตรง ≤ 100,000 บาท')
-                    ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('create-direct-medium'))
-                    ->icon('heroicon-o-shopping-bag')
-                    ->group('Procurement Management')
-                    ->sort(11),
                 NavigationItem::make('คำขอของฉัน')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('my-requests'))
-                    ->icon('heroicon-o-document-text')
+                    ->icon('heroicon-o-user')
                     ->group('Procurement Management')
-                    ->sort(12),
+                    ->sort(1),
                 NavigationItem::make('รออนุมัติ')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('pending-approvals'))
                     ->icon('heroicon-o-clock')
                     ->group('Procurement Management')
-                    ->sort(13)
+                    ->sort(2)
                     ->badge(function () {
                         return \App\Models\PurchaseRequisition::where('status', 'pending_approval')->count();
                     }),
+                NavigationItem::make('จัดซื้อตรง ≤ 10,000 บาท')
+                    ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('create-direct-small'))
+                    ->icon('heroicon-o-shopping-cart')
+                    ->group('Procurement Management')
+                    ->sort(4),
+                NavigationItem::make('จัดซื้อตรง ≤ 100,000 บาท')
+                    ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('create-direct-medium'))
+                    ->icon('heroicon-o-shopping-bag')
+                    ->group('Procurement Management')
+                    ->sort(5),
             ]);
     }
 }

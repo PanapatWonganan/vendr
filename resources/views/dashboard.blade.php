@@ -228,4 +228,4 @@ document.addEventListener('DOMContentLoaded', function() {
 .grade-c { color: #f59e0b; }
 .grade-d { color: #ef4444; }
 </style>
-@endsection
+@endsection  

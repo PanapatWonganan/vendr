@@ -104,6 +104,7 @@ class PurchaseOrderPdfService
             'purchaseRequisition',
             'items',
             'approver',
+            'company',
         ]);
         
         // Get work type label and document code
@@ -148,6 +149,15 @@ class PurchaseOrderPdfService
             default => '0.2'
         };
         
+        // Get company data from relationship
+        $companyData = [
+            'name' => $purchaseOrder->company->description ?? $purchaseOrder->company->name ?? 'บริษัท อินโนบิค จำกัด',
+            'address' => $purchaseOrder->company->address ?? 'เลขที่ 425/1 อาคาร เอนโก้เทอร์มินอล อาคาร บี ชั้น 7 ถนนกำแพงเพชร 6 แขวงดอนเมือง เขตดอนเมือง กรุงเทพมหานคร 10210',
+            'tax_id' => $purchaseOrder->company->tax_id ?? '0105563067701',
+            'phone' => $purchaseOrder->company->phone ?? '02-111-6289',
+            'email' => $purchaseOrder->company->email ?? 'info@innobic.com',
+        ];
+
         return [
             'purchaseOrder' => $purchaseOrder,
             'workTypeLabel' => $workTypeLabel,
@@ -155,13 +165,7 @@ class PurchaseOrderPdfService
             'participantLabel' => $participantLabel,
             'penaltyRate' => $penaltyRate,
             'procurementMethodLabel' => $procurementMethodLabel,
-            'company' => [
-                'name' => 'บริษัท อินโนบิค นูทริชั่น จำกัด',
-                'address' => 'เลขที่ 425/1 อาคาร เอนโก้เทอร์มินอล อาคาร บี ชั้น 7 ถนนกำแพงเพชร 6 แขวงดอนเมือง เขตดอนเมือง กรุงเทพมหานคร 10210',
-                'tax_id' => '0123456789012',
-                'phone' => '02-111-6289',
-                'email' => 'info@innobic.com',
-            ],
+            'company' => $companyData,
             'printDate' => now()->format('d/m/Y H:i'),
             'approvalDate' => $purchaseOrder->approved_at ? $purchaseOrder->approved_at->format('d/m/Y') : now()->format('d/m/Y'),
         ];

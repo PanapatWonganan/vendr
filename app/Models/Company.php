@@ -16,6 +16,10 @@ class Company extends Model
         'display_name',
         'logo',
         'description',
+        'address',
+        'tax_id',
+        'phone',
+        'email',
         'is_active',
         'settings',
     ];

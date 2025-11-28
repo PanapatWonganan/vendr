@@ -59,8 +59,15 @@ class VendorResource extends Resource
                     ->email()
                     ->required()
                     ->maxLength(255),
-                Forms\Components\TextInput::make('status')
-                    ->required(),
+                Forms\Components\Select::make('status')
+                    ->required()
+                    ->options([
+                        Vendor::STATUS_PENDING => 'รอดำเนินการ',
+                        Vendor::STATUS_APPROVED => 'อนุมัติแล้ว',
+                        Vendor::STATUS_REJECTED => 'ปฏิเสธ',
+                        Vendor::STATUS_SUSPENDED => 'ระงับ',
+                    ])
+                    ->default(Vendor::STATUS_PENDING),
                 Forms\Components\Textarea::make('documents')
                     ->columnSpanFull(),
             ]);
@@ -88,7 +95,21 @@ class VendorResource extends Resource
                     ->searchable(),
                 Tables\Columns\TextColumn::make('contact_email')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('status'),
+                Tables\Columns\BadgeColumn::make('status')
+                    ->formatStateUsing(fn (string $state): string => match($state) {
+                        Vendor::STATUS_PENDING => 'รอดำเนินการ',
+                        Vendor::STATUS_APPROVED => 'อนุมัติแล้ว', 
+                        Vendor::STATUS_REJECTED => 'ปฏิเสธ',
+                        Vendor::STATUS_SUSPENDED => 'ระงับ',
+                        default => $state
+                    })
+                    ->color(fn (string $state): string => match($state) {
+                        Vendor::STATUS_PENDING => 'warning',
+                        Vendor::STATUS_APPROVED => 'success',
+                        Vendor::STATUS_REJECTED => 'danger', 
+                        Vendor::STATUS_SUSPENDED => 'secondary',
+                        default => 'gray'
+                    }),
                 Tables\Columns\TextColumn::make('current_score')
                     ->label('คะแนนปัจจุบัน')
                     ->state(function (Vendor $record) {

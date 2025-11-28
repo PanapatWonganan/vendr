@@ -77,6 +77,7 @@ class DeliveryNotePdfService
             'purchaseRequisition',
             'items',
             'approver',
+            'company',
         ]);
         
         // Determine vendor information based on database schema
@@ -91,17 +92,20 @@ class DeliveryNotePdfService
             $vendorAddress = $purchaseOrder->delivery_address ?? '';
         }
         
+        // Get company data from relationship
+        $companyData = [
+            'name' => $purchaseOrder->company->description ?? $purchaseOrder->company->name ?? 'บริษัท อินโนบิค จำกัด',
+            'address' => $purchaseOrder->company->address ?? 'เลขที่ 425/1 อาคาร เอนโก้เทอร์มินอล อาคาร บี ชั้น 7 ถนนกำแพงเพชร 6 แขวงดอนเมือง เขตดอนเมือง กรุงเทพมหานคร 10210',
+            'tax_id' => $purchaseOrder->company->tax_id ?? '0105563067701',
+            'phone' => $purchaseOrder->company->phone ?? '02-111-6289',
+            'email' => $purchaseOrder->company->email ?? 'info@innobic.com',
+        ];
+
         return [
             'purchaseOrder' => $purchaseOrder,
             'vendorName' => $vendorName,
             'vendorAddress' => $vendorAddress,
-            'company' => [
-                'name' => 'บริษัท อินโนบิค นูทริชั่น จำกัด',
-                'address' => 'เลขที่ 425/1 อาคาร เอนโก้เทอร์มินอล อาคาร บี ชั้น 7 ถนนกำแพงเพชร 6 แขวงดอนเมือง เขตดอนเมือง กรุงเทพมหานคร 10210',
-                'tax_id' => '0123456789012',
-                'phone' => '02-111-6289',
-                'email' => 'info@innobic.com',
-            ],
+            'company' => $companyData,
             'printDate' => now()->format('d/m/Y H:i'),
         ];
     }

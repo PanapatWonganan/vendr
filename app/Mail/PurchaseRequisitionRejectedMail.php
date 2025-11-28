@@ -17,16 +17,16 @@ class PurchaseRequisitionRejectedMail extends Mailable
 
     public $purchaseRequisition;
     public $rejectedBy;
-    public $rejectionReason;
+    public $recipient;
 
     /**
      * Create a new message instance.
      */
-    public function __construct(PurchaseRequisition $purchaseRequisition, User $rejectedBy, string $rejectionReason)
+    public function __construct(PurchaseRequisition $purchaseRequisition, User $rejectedBy, User $recipient)
     {
         $this->purchaseRequisition = $purchaseRequisition;
         $this->rejectedBy = $rejectedBy;
-        $this->rejectionReason = $rejectionReason;
+        $this->recipient = $recipient;
     }
 
     /**
@@ -49,7 +49,8 @@ class PurchaseRequisitionRejectedMail extends Mailable
             with: [
                 'purchaseRequisition' => $this->purchaseRequisition,
                 'rejectedBy' => $this->rejectedBy,
-                'rejectionReason' => $this->rejectionReason,
+                'recipient' => $this->recipient,
+                'rejectionReason' => $this->purchaseRequisition->rejection_reason ?? $this->purchaseRequisition->rejection_notes ?? 'ไม่ได้ระบุเหตุผล',
                 'requester' => $this->purchaseRequisition->requester,
             ]
         );

@@ -1111,7 +1111,7 @@ class PurchaseRequisitionController extends Controller
                 'company_id' => session('company_id'),
                 'pr_number' => PurchaseRequisition::generatePRNumber(),
                 'pr_type' => 'direct_small',
-                'requires_po' => false,
+                // 'requires_po' => false, // Field removed from database
                 'title' => $validated['title'],
                 'description' => $validated['description'],
                 'department_id' => $validated['department_id'],
@@ -1263,7 +1263,7 @@ class PurchaseRequisitionController extends Controller
                 'company_id' => session('company_id'),
                 'pr_number' => PurchaseRequisition::generatePRNumber(),
                 'pr_type' => 'direct_medium',
-                'requires_po' => false,
+                // 'requires_po' => false, // Field removed from database
                 'title' => $validated['title'],
                 'description' => $validated['description'],
                 'department_id' => $validated['department_id'],

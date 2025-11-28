@@ -26,7 +26,7 @@ class CreateDirectPurchaseSmall extends CreateRecord
         $data['prepared_by_id'] = auth()->id();
         $data['created_by'] = auth()->id(); // Required field
         $data['pr_type'] = 'direct_small'; // ≤ 10,000
-        $data['requires_po'] = true;
+        // $data['requires_po'] = true; // Field removed from database
         $data['status'] = 'draft';
         $data['total_amount'] = 0; // Will be calculated from items
         

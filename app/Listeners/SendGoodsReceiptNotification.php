@@ -29,10 +29,12 @@ class SendGoodsReceiptNotification implements ShouldQueue
     public function handle(GoodsReceiptCreated $event): void
     {
         try {
+            Log::info("🚀 GR EMAIL HANDLER STARTED", ['gr_id' => $event->goodsReceiptId, 'creator_id' => $event->creatorId]);
+            
             // Get GR with relationships
             $goodsReceipt = GoodsReceipt::with([
                 'purchaseOrder', 
-                'supplier', 
+                'vendor', 
                 'inspectionCommittee',
                 'createdBy'
             ])->find($event->goodsReceiptId);
@@ -48,6 +50,13 @@ class SendGoodsReceiptNotification implements ShouldQueue
                 Log::warning("Creator not found: {$event->creatorId}");
                 return;
             }
+            
+            Log::info("📋 GR Details", [
+                'gr_number' => $goodsReceipt->gr_number,
+                'committee_id' => $goodsReceipt->inspection_committee_id,
+                'committee_email' => $goodsReceipt->inspectionCommittee?->email,
+                'creator_email' => $creator->email
+            ]);
 
             // Send email to inspection committee if assigned
             if ($goodsReceipt->inspectionCommittee && $goodsReceipt->inspectionCommittee->email) {

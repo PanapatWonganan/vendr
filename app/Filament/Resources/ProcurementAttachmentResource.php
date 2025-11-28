@@ -21,7 +21,7 @@ class ProcurementAttachmentResource extends Resource
     protected static ?string $modelLabel = 'Attachment';
     protected static ?string $pluralModelLabel = 'Attachments';
     protected static ?string $navigationGroup = 'Procurement Management';
-    protected static ?int $navigationSort = 21;
+    protected static ?int $navigationSort = 9;
 
     public static function form(Form $form): Form
     {

@@ -26,6 +26,7 @@ class PurchaseRequisition extends Model
         'description',
         'date',
         'category',
+        'form_category',
         'work_type',
         'procurement_method',
         'procurement_budget',
@@ -65,7 +66,6 @@ class PurchaseRequisition extends Model
         'rejected_notes',
         // Direct Purchase fields
         'pr_type',
-        'requires_po',
         'approval_request_date',
         'clause_number',
         'io_number',
@@ -74,6 +74,9 @@ class PurchaseRequisition extends Model
         'reference_document',
         'completion_date',
         'completion_notes',
+        // SLA tracking fields
+        'submitted_at',
+        'pr_approved_at',
     ];
 
     /**
@@ -89,7 +92,8 @@ class PurchaseRequisition extends Model
         'total_amount' => 'decimal:2',
         'approval_request_date' => 'date',
         'completion_date' => 'datetime',
-        'requires_po' => 'boolean',
+        'submitted_at' => 'datetime',
+        'pr_approved_at' => 'datetime',
     ];
 
     /**
@@ -158,6 +162,26 @@ class PurchaseRequisition extends Model
     {
         $options = self::getCategoryOptions();
         return $options[$this->category] ?? $this->category;
+    }
+
+    /**
+     * Get form category options
+     */
+    public static function getFormCategoryOptions(): array
+    {
+        return [
+            'act_based' => 'แบบฟอร์มตาม พรบ',
+            'law_based' => 'แบบฟอร์มตามกฎหมาย',
+        ];
+    }
+
+    /**
+     * Get form category label
+     */
+    public function getFormCategoryLabelAttribute(): string
+    {
+        $options = self::getFormCategoryOptions();
+        return $options[$this->form_category] ?? $this->form_category;
     }
 
     public static function getWorkTypeOptions()
@@ -264,6 +288,14 @@ class PurchaseRequisition extends Model
     public function approvals(): HasMany
     {
         return $this->hasMany(PurchaseRequisitionApproval::class);
+    }
+
+    /**
+     * Get the SLA tracking records for the purchase requisition.
+     */
+    public function slaTrackings(): HasMany
+    {
+        return $this->hasMany(SlaTracking::class);
     }
 
     /**

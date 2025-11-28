@@ -224,7 +224,7 @@
             @endif
             
             <div style="text-align: center; margin: 30px 0;">
-                <a href="{{ config('app.url') }}/admin/purchase-orders/{{ $purchaseOrder->id }}" class="action-button">
+                <a href="{{ url('/admin/purchase-orders/' . $purchaseOrder->id . '/edit') }}" class="action-button">
                     🔍 ดูรายละเอียดใบ PO
                 </a>
             </div>
