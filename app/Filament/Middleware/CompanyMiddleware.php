@@ -11,12 +11,26 @@ class CompanyMiddleware
 {
     public function handle(Request $request, Closure $next)
     {
+        // Allow login routes to pass through without company check
+        if ($request->routeIs('filament.admin.auth.login') ||
+            $request->is('admin/login*') ||
+            $request->is('admin/logout*')) {
+            return $next($request);
+        }
+
+        // Allow company selection routes to pass through
+        if ($request->routeIs('company.select') ||
+            $request->routeIs('company.set') ||
+            $request->is('company/*')) {
+            return $next($request);
+        }
+
         // Check if user has selected a company
         $companyId = session('company_id');
         $companyConnection = session('company_connection');
 
         if (!$companyId || !$companyConnection) {
-            // Redirect to company selection page instead of auto-setting default
+            // Only redirect to company selection if accessing other admin routes
             if ($request->is('admin/*')) {
                 return redirect()->route('company.select');
             }
