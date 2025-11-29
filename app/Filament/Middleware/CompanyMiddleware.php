@@ -10,6 +10,11 @@ use App\Filament\Pages\CompanySelect;
 
 class CompanyMiddleware
 {
+    public function __construct()
+    {
+        \Log::info('CompanyMiddleware __construct called');
+    }
+
     public function handle(Request $request, Closure $next)
     {
         // Allow login routes to pass through without company check
