@@ -62,6 +62,48 @@ return [
             ]) : [],
         ],
 
+        'innobic_asia' => [
+            'driver' => 'mysql',
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => 'innobic_asia',
+            'username' => env('INNOBIC_ASIA_DB_USERNAME', 'innobic_asia_user'),
+            'password' => env('INNOBIC_ASIA_DB_PASSWORD', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'strict' => true,
+            'engine' => null,
+        ],
+
+        'innobic_nutrition' => [
+            'driver' => 'mysql',
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => 'innobic_nutrition',
+            'username' => env('INNOBIC_NUTRITION_DB_USERNAME', 'innobic_nutrition_user'),
+            'password' => env('INNOBIC_NUTRITION_DB_PASSWORD', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'strict' => true,
+            'engine' => null,
+        ],
+
+        'innobic_ll' => [
+            'driver' => 'mysql',
+            'host' => env('DB_HOST', '127.0.0.1'),
+            'port' => env('DB_PORT', '3306'),
+            'database' => 'innobic_ll',
+            'username' => env('INNOBIC_LL_DB_USERNAME', 'innobic_ll_user'),
+            'password' => env('INNOBIC_LL_DB_PASSWORD', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'strict' => true,
+            'engine' => null,
+        ],
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),
