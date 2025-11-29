@@ -4,6 +4,7 @@ namespace App\Http\Responses;
 
 use Filament\Http\Responses\Auth\Contracts\LoginResponse as LoginResponseContract;
 use Illuminate\Http\RedirectResponse;
+use App\Filament\Pages\CompanySelect;
 
 class LoginResponse implements LoginResponseContract
 {
@@ -14,7 +15,7 @@ class LoginResponse implements LoginResponseContract
             return redirect()->intended(filament()->getUrl());
         }
 
-        // ถ้ายังไม่มี ให้ไปหน้าเลือกบริษัทก่อน
-        return redirect()->route('company.select');
+        // ถ้ายังไม่มี ให้ไปหน้าเลือกบริษัทก่อน (ใน Filament Panel)
+        return redirect()->to(CompanySelect::getUrl());
     }
 }

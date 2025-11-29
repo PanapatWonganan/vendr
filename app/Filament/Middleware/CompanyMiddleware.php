@@ -6,6 +6,7 @@ use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Models\BaseModel;
+use App\Filament\Pages\CompanySelect;
 
 class CompanyMiddleware
 {
@@ -18,10 +19,8 @@ class CompanyMiddleware
             return $next($request);
         }
 
-        // Allow company selection routes to pass through
-        if ($request->routeIs('company.select') ||
-            $request->routeIs('company.set') ||
-            $request->is('company/*')) {
+        // Allow company selection page to pass through
+        if ($request->is('admin/company-select')) {
             return $next($request);
         }
 
@@ -32,7 +31,7 @@ class CompanyMiddleware
         if (!$companyId || !$companyConnection) {
             // Only redirect to company selection if accessing other admin routes
             if ($request->is('admin/*')) {
-                return redirect()->route('company.select');
+                return redirect()->to(CompanySelect::getUrl());
             }
         }
 

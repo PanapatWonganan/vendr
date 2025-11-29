@@ -51,31 +51,23 @@ class CompanySelect extends Page
     public function selectCompany(): void
     {
         $data = $this->form->getState();
-        
+
         if (!isset($data['company_id'])) {
             return;
         }
 
         $company = Company::find($data['company_id']);
-        
+
         if (!$company || !$company->is_active) {
             $this->addError('company_id', 'บริษัทที่เลือกไม่พร้อมใช้งาน');
             return;
         }
 
-        // Test database connection
-        try {
-            DB::connection($company->database_connection)->getPdo();
-        } catch (\Exception $e) {
-            $this->addError('company_id', 'ไม่สามารถเชื่อมต่อฐานข้อมูลของบริษัทนี้ได้');
-            return;
-        }
-
-        // Set session data
+        // Set session data (ใช้ single database)
         session([
             'company_id' => $company->id,
             'company_name' => $company->name,
-            'company_connection' => $company->database_connection,
+            'company_connection' => 'mysql', // ใช้ default connection
             'company_display_name' => $company->display_name,
         ]);
 
