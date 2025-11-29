@@ -8,14 +8,8 @@ class CustomFilamentAuth extends FilamentAuthenticate
 {
     protected function authenticate($request, array $guards): void
     {
-        \Log::info('CustomFilamentAuth called', [
-            'path' => $request->path(),
-            'user' => auth()->user()?->id,
-        ]);
-
-        // ให้ผ่านถ้า user login แล้ว
+        // ให้ผ่านถ้า user login แล้ว (bypass canAccessPanel check)
         if (auth()->check()) {
-            \Log::info('CustomFilamentAuth: User authenticated, bypassing canAccessPanel');
             return;
         }
 

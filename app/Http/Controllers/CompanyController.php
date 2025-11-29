@@ -41,12 +41,6 @@ class CompanyController extends Controller
             'company_name' => $company->display_name,
         ]);
 
-        \Log::info('Company selected', [
-            'company_id' => $company->id,
-            'session_company_id' => session('company_id'),
-            'session_company_name' => session('company_name'),
-        ]);
-
         // Set database connection
         BaseModel::setCompanyConnection($company->getDatabaseConnection());
 
