@@ -78,10 +78,10 @@ class AdminPanelProvider extends PanelProvider
                 SubstituteBindings::class,
                 DisableBladeIconComponents::class,
                 DispatchServingFilamentEvent::class,
-                CompanyMiddleware::class,
             ])
             ->authMiddleware([
                 Authenticate::class,
+                CompanyMiddleware::class,
             ])
             ->navigationGroups([
                 'Procurement Management',
