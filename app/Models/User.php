@@ -147,6 +147,12 @@ class User extends Authenticatable
      */
     public function canAccessPanel(\Filament\Panel $panel): bool
     {
+        \Log::info('canAccessPanel called', [
+            'user_id' => $this->id,
+            'user_email' => $this->email,
+            'panel_id' => $panel->getId(),
+        ]);
+
         // Allow all authenticated users to access the panel
         return true;
     }
