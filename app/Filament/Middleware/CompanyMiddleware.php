@@ -28,9 +28,17 @@ class CompanyMiddleware
         $companyId = session('company_id');
         $companyConnection = session('company_connection');
 
+        \Log::info('CompanyMiddleware check', [
+            'path' => $request->path(),
+            'company_id' => $companyId,
+            'company_connection' => $companyConnection,
+            'has_company' => !empty($companyId),
+        ]);
+
         if (!$companyId || !$companyConnection) {
             // Only redirect to company selection if accessing other admin routes
             if ($request->is('admin/*')) {
+                \Log::info('CompanyMiddleware redirecting to company select');
                 return redirect()->to(CompanySelect::getUrl());
             }
         }

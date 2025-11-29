@@ -81,7 +81,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-                // CompanyMiddleware::class, // ปิดชั่วคราวเพื่อทดสอบ
+                CompanyMiddleware::class,
             ])
             ->navigationGroups([
                 'Procurement Management',
