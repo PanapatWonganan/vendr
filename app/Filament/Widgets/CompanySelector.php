@@ -30,11 +30,11 @@ class CompanySelector extends Widget
             }
         }
 
-        $currentCompany = session('company_id') ? 
+        $currentCompany = session('company_id') ?
             Company::find(session('company_id')) : null;
-            
+
         $companies = Company::where('is_active', true)->get();
-        
+
         return [
             'currentCompany' => $currentCompany,
             'companies' => $companies,
@@ -45,19 +45,12 @@ class CompanySelector extends Widget
     public function switchCompany($companyId)
     {
         $company = Company::find($companyId);
-        
+
         if (!$company || !$company->is_active) {
             return;
         }
 
-        // Test database connection
-        try {
-            \DB::connection($company->database_connection)->getPdo();
-        } catch (\Exception $e) {
-            return;
-        }
-
-        // Set session data
+        // Set session data with company's database connection
         session([
             'company_id' => $company->id,
             'company_name' => $company->name,

@@ -26,14 +26,12 @@ abstract class BaseModel extends Model
      */
     public function getConnectionName()
     {
-        // ใช้ default connection เสมอ (single database with company_id filtering)
+        // Use company-specific database connection from session
+        if (session('company_connection')) {
+            return session('company_connection');
+        }
+
         return config('database.default');
-        
-        // Code สำหรับ multi-database (ปิดใช้งานชั่วคราว)
-        // if (session('company_connection')) {
-        //     return session('company_connection');
-        // }
-        // return config('database.default');
     }
 
     /**
