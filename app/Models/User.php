@@ -151,9 +151,14 @@ class User extends Authenticatable
             'user_id' => $this->id,
             'user_email' => $this->email,
             'panel_id' => $panel->getId(),
+            'returning' => 'TRUE',
         ]);
 
         // Allow all authenticated users to access the panel
-        return true;
+        $result = true;
+
+        \Log::info('canAccessPanel returning', ['result' => $result]);
+
+        return $result;
     }
 }
