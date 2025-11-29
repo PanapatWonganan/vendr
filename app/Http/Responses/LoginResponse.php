@@ -13,7 +13,7 @@ class LoginResponse implements LoginResponseContract
             return redirect()->intended(filament()->getUrl());
         }
 
-        // ถ้ายังไม่มี ให้ไปหน้าเลือกบริษัทก่อน (ใน Filament Panel)
-        return redirect('/admin/company-select');
+        // ถ้ายังไม่มี ให้ไปหน้าเลือกบริษัทก่อน (route-based, ไม่ใช่ Filament page)
+        return redirect()->route('company.select');
     }
 }
