@@ -80,7 +80,7 @@ class AdminPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->authMiddleware([
-                \App\Http\Middleware\FilamentAuthenticate::class,
+                \App\Http\Middleware\CustomFilamentAuth::class,
                 CompanyMiddleware::class,
             ])
             ->navigationGroups([
