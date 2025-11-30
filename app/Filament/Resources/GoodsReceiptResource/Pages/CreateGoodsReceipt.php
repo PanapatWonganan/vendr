@@ -16,11 +16,26 @@ class CreateGoodsReceipt extends CreateRecord
     
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        // Get vendor_id from PO if not already set
+        if (empty($data['vendor_id']) && !empty($data['purchase_order_id'])) {
+            $connection = session('company_connection', 'mysql');
+            $po = \App\Models\PurchaseOrder::on($connection)
+                ->with(['vendor', 'supplier'])
+                ->find($data['purchase_order_id']);
+
+            if ($po) {
+                $vendor = $po->vendor ?: $po->supplier;
+                if ($vendor) {
+                    $data['vendor_id'] = $vendor->id;
+                }
+            }
+        }
+
         // Validate vendor_id is set
         if (empty($data['vendor_id'])) {
             \Filament\Notifications\Notification::make()
                 ->title('ข้อมูลไม่ครบ')
-                ->body('กรุณาเลือก Purchase Order เพื่อดึงข้อมูลผู้ขายอัตโนมัติ')
+                ->body('กรุณาเลือก Purchase Order ที่มีข้อมูลผู้ขาย')
                 ->danger()
                 ->send();
 
