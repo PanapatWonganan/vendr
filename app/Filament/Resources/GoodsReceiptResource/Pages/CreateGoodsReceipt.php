@@ -18,7 +18,13 @@ class CreateGoodsReceipt extends CreateRecord
     {
         // Validate vendor_id is set
         if (empty($data['vendor_id'])) {
-            throw new \Exception('กรุณาเลือก Purchase Order เพื่อดึงข้อมูลผู้ขาย');
+            \Filament\Notifications\Notification::make()
+                ->title('ข้อมูลไม่ครบ')
+                ->body('กรุณาเลือก Purchase Order เพื่อดึงข้อมูลผู้ขายอัตโนมัติ')
+                ->danger()
+                ->send();
+
+            $this->halt();
         }
 
         // Add company_id from session (handled by BaseModel)
