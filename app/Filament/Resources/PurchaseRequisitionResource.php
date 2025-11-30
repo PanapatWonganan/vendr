@@ -321,9 +321,10 @@ class PurchaseRequisitionResource extends Resource
                                         ->label('Item Status')
                                         ->options([
                                             'pending' => 'Pending',
-                                            'approved' => 'Approved',
-                                            'rejected' => 'Rejected',
                                             'ordered' => 'Ordered',
+                                            'partially_ordered' => 'Partially Ordered',
+                                            'received' => 'Received',
+                                            'cancelled' => 'Cancelled',
                                         ])
                                         ->default('pending'),
                                 ]),
