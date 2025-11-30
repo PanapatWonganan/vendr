@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\PurchaseOrderResource\Pages;
 
 use App\Filament\Resources\PurchaseOrderResource;
+use App\Filament\Actions\ApprovePurchaseOrderAction;
+use App\Filament\Actions\RejectPurchaseOrderAction;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Actions;
 use Filament\Tables;
@@ -11,7 +13,7 @@ use Illuminate\Database\Eloquent\Builder;
 class PendingPurchaseOrders extends ListRecords
 {
     protected static string $resource = PurchaseOrderResource::class;
-    
+
     protected static ?string $title = 'รออนุมัติ PO';
     protected static ?string $breadcrumb = 'Pending Approvals';
 
@@ -27,7 +29,7 @@ class PendingPurchaseOrders extends ListRecords
     protected function getTableQuery(): Builder
     {
         $user = auth()->user();
-        
+
         return static::getResource()::getEloquentQuery()
             ->where('status', 'pending_approval')
             // Filter by current company
@@ -37,12 +39,12 @@ class PendingPurchaseOrders extends ListRecords
                 if ($user->hasAnyRole(['admin', 'procurement_manager'])) {
                     return $query;
                 }
-                
+
                 // Department heads can only approve POs from their department
                 if ($user->hasRole('department_head') && $user->department_id) {
                     return $query->where('department_id', $user->department_id);
                 }
-                
+
                 // Default: no access
                 return $query->whereNull('id');
             })
@@ -55,9 +57,14 @@ class PendingPurchaseOrders extends ListRecords
             Tables\Actions\ViewAction::make()
                 ->label('ดู')
                 ->icon('heroicon-o-eye'),
-                
-            // DISABLED: Approve and Reject actions removed from table
-            // Users can approve/reject from the edit page instead
+
+            Tables\Actions\EditAction::make()
+                ->label('แก้ไข')
+                ->icon('heroicon-o-pencil'),
+
+            // PO Approval Actions (ปุ่มอนุมัติ/ปฏิเสธ)
+            new ApprovePurchaseOrderAction('approve'),
+            new RejectPurchaseOrderAction('reject'),
         ];
     }
 

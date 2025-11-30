@@ -751,10 +751,6 @@ class PurchaseOrderResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
-                
-                // PO Approval Actions
-                new ApprovePurchaseOrderAction('approve'),
-                new RejectPurchaseOrderAction('reject'),
 
                 // Enhanced PO Workflow Actions
                 Tables\Actions\Action::make('submitForApproval')
