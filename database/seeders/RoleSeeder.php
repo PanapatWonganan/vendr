@@ -83,8 +83,32 @@ class RoleSeeder extends Seeder
                 'scope' => 'system',
                 'priority' => 50,
             ],
+            [
+                'name' => 'procurement_committee',
+                'display_name' => 'Procurement Committee',
+                'description' => 'Committee member for procurement decisions',
+                'is_active' => true,
+                'scope' => 'system',
+                'priority' => 35,
+            ],
+            [
+                'name' => 'inspection_committee',
+                'display_name' => 'Inspection Committee',
+                'description' => 'Committee member for goods inspection and acceptance',
+                'is_active' => true,
+                'scope' => 'system',
+                'priority' => 35,
+            ],
+            [
+                'name' => 'other_stakeholder',
+                'display_name' => 'Other Stakeholder',
+                'description' => 'Other stakeholders involved in procurement process',
+                'is_active' => true,
+                'scope' => 'system',
+                'priority' => 15,
+            ],
         ];
-        
+
         foreach ($procurementRoles as $roleData) {
             Role::firstOrCreate(
                 ['name' => $roleData['name']],
