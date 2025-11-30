@@ -60,11 +60,14 @@ class GoodsReceiptResource extends Resource
                             ->label('ผู้ขาย')
                             ->relationship('vendor', 'company_name')
                             ->disabled(fn ($get) => !empty($get('purchase_order_id')))
-                            ->dehydrated()
+                            ->dehydrated(true)
                             ->searchable()
                             ->preload()
                             ->live()
-                            ->required(),
+                            ->required()
+                            ->helperText(fn ($get) => $get('purchase_order_id')
+                                ? '✓ ดึงข้อมูลจาก PO อัตโนมัติ (ไม่สามารถแก้ไขได้)'
+                                : 'เลือก PO ก่อนเพื่อดึงข้อมูลผู้ขายอัตโนมัติ'),
                         Forms\Components\Select::make('inspection_committee_id')
                             ->label('คณะกรรมการตรวจสอบ')
                             ->relationship('inspectionCommittee', 'name')
