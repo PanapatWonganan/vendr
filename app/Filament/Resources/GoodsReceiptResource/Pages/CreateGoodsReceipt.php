@@ -19,15 +19,15 @@ class CreateGoodsReceipt extends CreateRecord
         // Get vendor_id from PO if not already set
         if (empty($data['vendor_id']) && !empty($data['purchase_order_id'])) {
             $connection = session('company_connection', 'mysql');
-            $po = \App\Models\PurchaseOrder::on($connection)
-                ->with(['vendor', 'supplier'])
-                ->find($data['purchase_order_id']);
 
-            if ($po) {
-                $vendor = $po->vendor ?: $po->supplier;
-                if ($vendor) {
-                    $data['vendor_id'] = $vendor->id;
-                }
+            // Query PO directly without relationships
+            $poData = \Illuminate\Support\Facades\DB::connection($connection)
+                ->table('purchase_orders')
+                ->where('id', $data['purchase_order_id'])
+                ->first();
+
+            if ($poData && $poData->vendor_id) {
+                $data['vendor_id'] = $poData->vendor_id;
             }
         }
 
