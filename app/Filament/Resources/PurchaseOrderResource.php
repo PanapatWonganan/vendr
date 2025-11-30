@@ -100,7 +100,7 @@ class PurchaseOrderResource extends Resource
                                         // Auto-fill PO title from PR
                                         $set('po_title', $pr->title ?? $pr->description);
 
-                                        // Auto-fill items from PR
+                                        // Auto-fill items from PR and calculate totals manually
                                         $prItems = $pr->items->map(function ($item) {
                                             return [
                                                 'item_code' => $item->item_code,
@@ -116,8 +116,23 @@ class PurchaseOrderResource extends Resource
 
                                         $set('items', $prItems);
 
-                                        // Trigger total calculation after items are loaded
-                                        static::updatePOTotals($get, $set);
+                                        // Calculate totals from PR items
+                                        $itemsTotal = 0.0;
+                                        foreach ($prItems as $item) {
+                                            $itemsTotal += (float) ($item['line_total'] ?? 0);
+                                        }
+
+                                        $discountAmount = 0.0; // No discount initially
+                                        $subtotal = $itemsTotal - $discountAmount;
+                                        $taxAmount = $subtotal * 0.07;
+                                        $totalAmount = $subtotal + $taxAmount;
+
+                                        // Set financial fields
+                                        $set('items_total', round($itemsTotal, 2));
+                                        $set('discount_amount', 0.00);
+                                        $set('subtotal', round($subtotal, 2));
+                                        $set('tax_amount', round($taxAmount, 2));
+                                        $set('total_amount', round($totalAmount, 2));
                                     }
                                 }
                             })
