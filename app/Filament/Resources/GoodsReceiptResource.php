@@ -71,8 +71,7 @@ class GoodsReceiptResource extends Resource
                             ->disabled()
                             ->dehydrated(false)
                             ->placeholder('เลือก PO เพื่อดึงข้อมูลผู้ขาย')
-                            ->helperText('✓ ดึงข้อมูลจาก PO อัตโนมัติ')
-                            ->required(),
+                            ->helperText('✓ ดึงข้อมูลจาก PO อัตโนมัติ'),
                         Forms\Components\Select::make('inspection_committee_id')
                             ->label('คณะกรรมการตรวจสอบ')
                             ->relationship('inspectionCommittee', 'name')
