@@ -15,6 +15,11 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     /**
+     * Use default database connection (shared across all companies)
+     */
+    protected $connection = 'mysql';
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>

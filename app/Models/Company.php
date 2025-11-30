@@ -9,6 +9,11 @@ class Company extends Model
 {
     use HasFactory;
 
+    /**
+     * Use default database connection (shared across all companies)
+     */
+    protected $connection = 'mysql';
+
     protected $fillable = [
         'name',
         'code',

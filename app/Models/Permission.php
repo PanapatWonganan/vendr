@@ -11,6 +11,11 @@ class Permission extends Model
     use HasFactory;
 
     /**
+     * Use default database connection (shared across all companies)
+     */
+    protected $connection = 'mysql';
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array
