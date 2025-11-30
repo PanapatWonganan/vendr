@@ -45,7 +45,13 @@ class GoodsReceiptResource extends Resource
                             ->live()
                             ->afterStateUpdated(function ($state, $set) {
                                 if ($state) {
-                                    $po = \App\Models\PurchaseOrder::with(['vendor', 'supplier'])->find($state);
+                                    // Use company connection from session
+                                    $connection = session('company_connection', 'mysql');
+
+                                    $po = \App\Models\PurchaseOrder::on($connection)
+                                        ->with(['vendor', 'supplier'])
+                                        ->find($state);
+
                                     if ($po) {
                                         // Get vendor info from PO (prefer vendor over supplier for compatibility)
                                         $vendor = $po->vendor ?: $po->supplier;
@@ -58,7 +64,13 @@ class GoodsReceiptResource extends Resource
                             ->required(),
                         Forms\Components\Select::make('vendor_id')
                             ->label('ผู้ขาย')
-                            ->relationship('vendor', 'company_name')
+                            ->options(function () {
+                                // Query vendors from current company database
+                                $connection = session('company_connection', 'mysql');
+                                return \App\Models\Vendor::on($connection)
+                                    ->pluck('company_name', 'id')
+                                    ->toArray();
+                            })
                             ->disabled(fn ($get) => !empty($get('purchase_order_id')))
                             ->dehydrated(true)
                             ->searchable()
