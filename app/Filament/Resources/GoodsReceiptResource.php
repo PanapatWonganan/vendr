@@ -64,15 +64,15 @@ class GoodsReceiptResource extends Resource
                             })
                             ->required(),
 
-                        Forms\Components\Hidden::make('vendor_id')
-                            ->required(),
+                        Forms\Components\Hidden::make('vendor_id'),
 
                         Forms\Components\TextInput::make('vendor_name_display')
                             ->label('ผู้ขาย')
                             ->disabled()
                             ->dehydrated(false)
                             ->placeholder('เลือก PO เพื่อดึงข้อมูลผู้ขาย')
-                            ->helperText('✓ ดึงข้อมูลจาก PO อัตโนมัติ'),
+                            ->helperText('✓ ดึงข้อมูลจาก PO อัตโนมัติ')
+                            ->required(),
                         Forms\Components\Select::make('inspection_committee_id')
                             ->label('คณะกรรมการตรวจสอบ')
                             ->relationship('inspectionCommittee', 'name')

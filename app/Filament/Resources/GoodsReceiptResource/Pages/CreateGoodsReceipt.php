@@ -16,20 +16,25 @@ class CreateGoodsReceipt extends CreateRecord
     
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        // Validate vendor_id is set
+        if (empty($data['vendor_id'])) {
+            throw new \Exception('กรุณาเลือก Purchase Order เพื่อดึงข้อมูลผู้ขาย');
+        }
+
         // Add company_id from session (handled by BaseModel)
         // Add created_by and received_by from current user
         $data['created_by'] = auth()->id();
         $data['received_by'] = auth()->id();
-        
+
         // Generate receipt number
         $model = new \App\Models\GoodsReceipt();
         $grNumber = $model->generateReceiptNumber();
         $data['gr_number'] = $grNumber;
         $data['receipt_number'] = $grNumber; // Use same value
-        
+
         // Set default values
         $data['is_quality_checked'] = false;
-        
+
         // Store uploaded files and their names temporarily
         if (isset($data['temp_attachments'])) {
             $this->tempAttachments = $data['temp_attachments'];
@@ -37,7 +42,7 @@ class CreateGoodsReceipt extends CreateRecord
             unset($data['temp_attachments']);
             unset($data['attachment_files']);
         }
-        
+
         return $data;
     }
     
