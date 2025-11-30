@@ -384,7 +384,6 @@ class PurchaseOrderResource extends Resource
                 Forms\Components\Section::make('รายการสินค้า')
                     ->schema([
                         Forms\Components\Repeater::make('items')
-                            ->relationship()
                             ->schema([
                                 Forms\Components\Grid::make(4)->schema([
                                     Forms\Components\TextInput::make('item_code')

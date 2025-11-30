@@ -95,10 +95,29 @@ class EditPurchaseOrder extends EditRecord
         return $actions;
     }
 
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        // Load items from database for editing
+        $data['items'] = $this->record->items->map(function ($item) {
+            return [
+                'item_code' => $item->item_code,
+                'description' => $item->description,
+                'quantity' => $item->quantity,
+                'unit_of_measure' => $item->unit_of_measure,
+                'unit_price' => $item->unit_price,
+                'line_total' => $item->line_total,
+                'status' => $item->status,
+                'line_number' => $item->line_number,
+            ];
+        })->toArray();
+
+        return $data;
+    }
+
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $data['updated_by'] = Auth::id();
-        
+
         // Handle file uploads - populate metadata
         if (isset($data['files'])) {
             foreach ($data['files'] as $key => $fileData) {
@@ -110,7 +129,7 @@ class EditPurchaseOrder extends EditRecord
                         $data['files'][$key]['file_type'] = Storage::disk('public')->mimeType($filePath);
                         $data['files'][$key]['file_size'] = Storage::disk('public')->size($filePath);
                         $data['files'][$key]['uploaded_by'] = Auth::id();
-                        
+
                         // If original_name is not set, use the filename
                         if (empty($data['files'][$key]['original_name'])) {
                             $data['files'][$key]['original_name'] = basename($filePath);
@@ -119,7 +138,32 @@ class EditPurchaseOrder extends EditRecord
                 }
             }
         }
-        
+
         return $data;
+    }
+
+    protected function afterSave(): void
+    {
+        // Update items manually (since we removed ->relationship() from Repeater)
+        $formData = $this->form->getState();
+
+        // Delete all existing items
+        $this->record->items()->delete();
+
+        // Create new items from form data
+        if (!empty($formData['items'])) {
+            foreach ($formData['items'] as $index => $itemData) {
+                $this->record->items()->create([
+                    'item_code' => $itemData['item_code'] ?? null,
+                    'description' => $itemData['description'],
+                    'quantity' => $itemData['quantity'],
+                    'unit_of_measure' => $itemData['unit_of_measure'],
+                    'unit_price' => $itemData['unit_price'] ?? 0,
+                    'line_total' => $itemData['line_total'] ?? ($itemData['quantity'] * ($itemData['unit_price'] ?? 0)),
+                    'status' => $itemData['status'] ?? 'ordered',
+                    'line_number' => $index + 1,
+                ]);
+            }
+        }
     }
 }

@@ -64,6 +64,23 @@ class CreatePurchaseOrder extends CreateRecord
     
     protected function afterCreate(): void
     {
+        // Save items manually (since we removed ->relationship() from Repeater)
+        $formData = $this->form->getState();
+        if (!empty($formData['items'])) {
+            foreach ($formData['items'] as $index => $itemData) {
+                $this->record->items()->create([
+                    'item_code' => $itemData['item_code'] ?? null,
+                    'description' => $itemData['description'],
+                    'quantity' => $itemData['quantity'],
+                    'unit_of_measure' => $itemData['unit_of_measure'],
+                    'unit_price' => $itemData['unit_price'] ?? 0,
+                    'line_total' => $itemData['line_total'] ?? ($itemData['quantity'] * ($itemData['unit_price'] ?? 0)),
+                    'status' => $itemData['status'] ?? 'ordered',
+                    'line_number' => $index + 1,
+                ]);
+            }
+        }
+
         // Update file metadata after creation
         if ($this->record->files) {
             foreach ($this->record->files as $file) {
@@ -73,15 +90,6 @@ class CreatePurchaseOrder extends CreateRecord
                         'file_size' => Storage::disk('public')->size($file->file_path),
                     ]);
                 }
-            }
-        }
-        
-        // Update line numbers for items
-        if ($this->record->items) {
-            foreach ($this->record->items as $index => $item) {
-                $item->update([
-                    'line_number' => $index + 1,
-                ]);
             }
         }
     }
