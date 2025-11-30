@@ -78,6 +78,52 @@ class PurchaseOrderResource extends Resource
                                 ->helperText('สำหรับเลข PO ที่มาจากภายนอก/SAP'),
                         ]),
 
+                        Forms\Components\Select::make('purchase_requisition_id')
+                            ->label('เลือก PR (ถ้ามี)')
+                            ->relationship(
+                                name: 'purchaseRequisition',
+                                titleAttribute: 'pr_number',
+                                modifyQueryUsing: fn (\Illuminate\Database\Eloquent\Builder $query) =>
+                                    $query->when(
+                                        session('company_id'),
+                                        fn ($q, $companyId) => $q->where('company_id', $companyId)
+                                    )
+                                    ->whereIn('status', ['approved'])
+                            )
+                            ->searchable()
+                            ->preload()
+                            ->live()
+                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                if ($state) {
+                                    $pr = PurchaseRequisition::with('items')->find($state);
+                                    if ($pr) {
+                                        // Auto-fill PO title from PR
+                                        $set('po_title', $pr->title ?? $pr->description);
+
+                                        // Auto-fill items from PR
+                                        $prItems = $pr->items->map(function ($item) {
+                                            return [
+                                                'item_code' => $item->item_code,
+                                                'description' => $item->description,
+                                                'quantity' => $item->quantity,
+                                                'unit_of_measure' => $item->unit_of_measure,
+                                                'unit_price' => $item->estimated_unit_price,
+                                                'line_total' => $item->estimated_amount,
+                                                'status' => 'ordered',
+                                                'line_number' => $item->line_number ?? 1,
+                                            ];
+                                        })->toArray();
+
+                                        $set('items', $prItems);
+
+                                        // Trigger total calculation after items are loaded
+                                        static::updatePOTotals($get, $set);
+                                    }
+                                }
+                            })
+                            ->helperText('เลือก PR ที่ได้รับอนุมัติแล้ว เพื่อดึงรายการสินค้ามาอัตโนมัติ')
+                            ->columnSpanFull(),
+
                         Forms\Components\TextInput::make('po_title')
                             ->label('ชื่องาน')
                             ->required()
