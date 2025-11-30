@@ -57,29 +57,22 @@ class GoodsReceiptResource extends Resource
                                         $vendor = $po->vendor ?: $po->supplier;
                                         if ($vendor) {
                                             $set('vendor_id', $vendor->id);
+                                            $set('vendor_name_display', $vendor->company_name);
                                         }
                                     }
                                 }
                             })
                             ->required(),
-                        Forms\Components\Select::make('vendor_id')
+
+                        Forms\Components\Hidden::make('vendor_id')
+                            ->required(),
+
+                        Forms\Components\TextInput::make('vendor_name_display')
                             ->label('ผู้ขาย')
-                            ->options(function () {
-                                // Query vendors from current company database
-                                $connection = session('company_connection', 'mysql');
-                                return \App\Models\Vendor::on($connection)
-                                    ->pluck('company_name', 'id')
-                                    ->toArray();
-                            })
-                            ->disabled(fn ($get) => !empty($get('purchase_order_id')))
-                            ->dehydrated(true)
-                            ->searchable()
-                            ->preload()
-                            ->live()
-                            ->required()
-                            ->helperText(fn ($get) => $get('purchase_order_id')
-                                ? '✓ ดึงข้อมูลจาก PO อัตโนมัติ (ไม่สามารถแก้ไขได้)'
-                                : 'เลือก PO ก่อนเพื่อดึงข้อมูลผู้ขายอัตโนมัติ'),
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->placeholder('เลือก PO เพื่อดึงข้อมูลผู้ขาย')
+                            ->helperText('✓ ดึงข้อมูลจาก PO อัตโนมัติ'),
                         Forms\Components\Select::make('inspection_committee_id')
                             ->label('คณะกรรมการตรวจสอบ')
                             ->relationship('inspectionCommittee', 'name')
