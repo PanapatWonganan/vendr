@@ -64,7 +64,8 @@ class GoodsReceiptResource extends Resource
                             })
                             ->required(),
 
-                        Forms\Components\Hidden::make('vendor_id'),
+                        Forms\Components\Hidden::make('vendor_id')
+                            ->dehydrated(true),
 
                         Forms\Components\TextInput::make('vendor_name_display')
                             ->label('ผู้ขาย')
