@@ -32,8 +32,8 @@ class SendDeliveryReminders extends Command
     {
         $this->info('Starting to send delivery reminders...');
 
-        // Get POs that are due in 7, 3, and 1 days
-        $reminderDays = [7, 3, 1];
+        // Get POs that are due in 15, 7, 3, and 1 days
+        $reminderDays = [15, 7, 3, 1];
 
         foreach ($reminderDays as $days) {
             $targetDate = Carbon::now()->addDays($days)->startOfDay();
