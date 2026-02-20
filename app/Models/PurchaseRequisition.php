@@ -179,8 +179,8 @@ class PurchaseRequisition extends Model
     public static function getFormCategoryOptions(): array
     {
         return [
-            'act_based' => 'แบบฟอร์มตาม พรบ',
-            'law_based' => 'แบบฟอร์มตามกฎหมาย',
+            'act_based' => 'แบบฟอร์มตาม พ.ร.บ.',
+            'law_based' => 'แบบฟอร์มเชิงพาณิชย์',
         ];
     }
 

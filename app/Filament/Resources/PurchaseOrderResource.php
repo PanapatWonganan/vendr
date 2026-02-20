@@ -161,8 +161,8 @@ class PurchaseOrderResource extends Resource
                             Forms\Components\Select::make('form_category')
                                 ->label('แบบฟอร์ม')
                                 ->options([
-                                    'act_based' => 'แบบฟอร์มตาม พรบ',
-                                    'law_based' => 'แบบฟอร์มตามกฎหมาย',
+                                    'act_based' => 'แบบฟอร์มตาม พ.ร.บ.',
+                                    'law_based' => 'แบบฟอร์มเชิงพาณิชย์',
                                 ])
                                 ->searchable()
                                 ->placeholder('เลือกประเภทแบบฟอร์ม'),
@@ -563,8 +563,8 @@ class PurchaseOrderResource extends Resource
                 Tables\Columns\BadgeColumn::make('form_category')
                     ->label('แบบฟอร์ม')
                     ->formatStateUsing(fn ($state) => match($state) {
-                        'act_based' => 'แบบฟอร์มตาม พรบ',
-                        'law_based' => 'แบบฟอร์มตามกฎหมาย',
+                        'act_based' => 'แบบฟอร์มตาม พ.ร.บ.',
+                        'law_based' => 'แบบฟอร์มเชิงพาณิชย์',
                         default => $state,
                     })
                     ->colors([
