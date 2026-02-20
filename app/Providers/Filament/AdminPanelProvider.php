@@ -111,12 +111,12 @@ class AdminPanelProvider extends PanelProvider
                     ->badge(function () {
                         return \App\Models\PurchaseRequisition::where('status', 'pending_approval')->count();
                     }),
-                NavigationItem::make('จัดซื้อตรง ≤ 10,000 บาท')
+                NavigationItem::make('จัดหาฯ ไม่เกิน 1 หมื่นบาท')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('create-direct-small'))
                     ->icon('heroicon-o-shopping-cart')
                     ->group('Procurement Management')
                     ->sort(4),
-                NavigationItem::make('จัดซื้อตรง ≤ 100,000 บาท')
+                NavigationItem::make('จัดหาฯ ไม่เกิน 1 แสนบาท')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('create-direct-medium'))
                     ->icon('heroicon-o-shopping-bag')
                     ->group('Procurement Management')

@@ -14,8 +14,8 @@ class CreateDirectPurchaseMedium extends CreateRecord
 {
     protected static string $resource = PurchaseRequisitionResource::class;
     
-    protected static ?string $title = 'สร้างใบขอซื้อตรง ≤ 100,000 บาท';
-    protected static ?string $breadcrumb = 'จัดซื้อตรง ≤ 100,000';
+    protected static ?string $title = 'จัดหาฯ ไม่เกิน 1 แสนบาท';
+    protected static ?string $breadcrumb = 'จัดหาฯ ไม่เกิน 1 แสนบาท';
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
@@ -86,13 +86,13 @@ class CreateDirectPurchaseMedium extends CreateRecord
             if ($totalAmount <= 10000) {
                 \Filament\Notifications\Notification::make()
                     ->title('ยอดเงินต่ำเกินไป')
-                    ->body('ยอดรวม ' . number_format($totalAmount, 2) . ' บาท ≤ 10,000 บาท ควรใช้แบบฟอร์มจัดซื้อตรง ≤ 10,000 บาท แทน')
+                    ->body('ยอดรวม ' . number_format($totalAmount, 2) . ' บาท ≤ 10,000 บาท ควรใช้แบบฟอร์มจัดหาฯ ไม่เกิน 1 หมื่นบาท แทน')
                     ->warning()
                     ->send();
                 
                 throw new \Illuminate\Validation\ValidationException(
                     validator: \Validator::make([], []),
-                    response: back()->withErrors(['total' => 'ควรใช้แบบฟอร์มจัดซื้อตรง ≤ 10,000 บาท'])
+                    response: back()->withErrors(['total' => 'ควรใช้แบบฟอร์มจัดหาฯ ไม่เกิน 1 หมื่นบาท'])
                 );
             }
         }
@@ -380,7 +380,7 @@ class CreateDirectPurchaseMedium extends CreateRecord
                             } elseif ($total <= 10000 && $total > 0) {
                                 \Filament\Notifications\Notification::make()
                                     ->title('ยอดเงินต่ำ')
-                                    ->body('ยอดรวม ' . number_format($total, 2) . ' บาท ≤ 10,000 บาท ควรใช้แบบฟอร์มจัดซื้อตรง ≤ 10,000 บาท')
+                                    ->body('ยอดรวม ' . number_format($total, 2) . ' บาท ≤ 10,000 บาท ควรใช้แบบฟอร์มจัดหาฯ ไม่เกิน 1 หมื่นบาท')
                                     ->warning()
                                     ->send();
                             }
@@ -402,7 +402,7 @@ class CreateDirectPurchaseMedium extends CreateRecord
         if ($totalAmount <= 10000) {
             \Filament\Notifications\Notification::make()
                 ->title('ยอดเงินต่ำ')
-                ->body('ยอดรวม ' . number_format($totalAmount, 2) . ' บาท ≤ 10,000 บาท แนะนำให้ใช้จัดซื้อตรงประเภท ≤ 10,000 บาท')
+                ->body('ยอดรวม ' . number_format($totalAmount, 2) . ' บาท ≤ 10,000 บาท แนะนำให้ใช้แบบฟอร์มจัดหาฯ ไม่เกิน 1 หมื่นบาท')
                 ->warning()
                 ->send();
         }

@@ -14,8 +14,8 @@ class CreateDirectPurchaseSmall extends CreateRecord
 {
     protected static string $resource = PurchaseRequisitionResource::class;
     
-    protected static ?string $title = 'สร้างใบขอซื้อตรง ≤ 10,000 บาท';
-    protected static ?string $breadcrumb = 'จัดซื้อตรง ≤ 10,000';
+    protected static ?string $title = 'จัดหาฯ ไม่เกิน 1 หมื่นบาท';
+    protected static ?string $breadcrumb = 'จัดหาฯ ไม่เกิน 1 หมื่นบาท';
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
