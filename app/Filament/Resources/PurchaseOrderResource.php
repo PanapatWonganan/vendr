@@ -160,10 +160,18 @@ class PurchaseOrderResource extends Resource
 
                             Forms\Components\Select::make('form_category')
                                 ->label('แบบฟอร์ม')
-                                ->options([
-                                    'act_based' => 'แบบฟอร์มตาม พ.ร.บ.',
-                                    'law_based' => 'แบบฟอร์มเชิงพาณิชย์',
-                                ])
+                                ->options(function () {
+                                    if (session('company_id') == 2) {
+                                        return ['law_based' => 'แบบฟอร์มเชิงพาณิชย์'];
+                                    }
+                                    return [
+                                        'act_based' => 'แบบฟอร์มตาม พ.ร.บ.',
+                                        'law_based' => 'แบบฟอร์มเชิงพาณิชย์',
+                                    ];
+                                })
+                                ->default(fn () => session('company_id') == 2 ? 'law_based' : null)
+                                ->disabled(fn () => session('company_id') == 2)
+                                ->dehydrated(true)
                                 ->searchable()
                                 ->placeholder('เลือกประเภทแบบฟอร์ม'),
                         ]),
