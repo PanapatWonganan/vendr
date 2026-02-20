@@ -56,7 +56,7 @@ class Company extends Model
     public function getLogoUrl()
     {
         if ($this->logo) {
-            return asset('storage/' . $this->logo);
+            return asset($this->logo);
         }
         return asset('assets/img/innobic.png'); // default logo
     }
