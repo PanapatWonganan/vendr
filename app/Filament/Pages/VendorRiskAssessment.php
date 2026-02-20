@@ -151,6 +151,16 @@ class VendorRiskAssessment extends Page implements HasForms
             }
 
             if ($this->currentAssessment && $this->currentAssessment->isCompleted()) {
+                // Warn user if DBD data was unavailable (rule-based only)
+                if (!$this->currentAssessment->hasDbdData()) {
+                    Notification::make()
+                        ->title('ไม่สามารถเชื่อมต่อ DBD ได้')
+                        ->body('ระบบไม่สามารถดึงข้อมูลจากกรมพัฒนาธุรกิจการค้าได้ ผลประเมินจะใช้ข้อมูลภายในเท่านั้น (ไม่ใช้ AI เพื่อป้องกันข้อมูลไม่ถูกต้อง)')
+                        ->warning()
+                        ->duration(10000)
+                        ->send();
+                }
+
                 Notification::make()
                     ->title('ประเมินเสร็จสมบูรณ์')
                     ->body("ระดับความเสี่ยง: {$this->currentAssessment->risk_level_label}")
@@ -226,11 +236,19 @@ class VendorRiskAssessment extends Page implements HasForms
 
     /**
      * Run AI analysis for external tax ID assessment
+     * Only uses AI when DBD data is available to prevent hallucination.
      */
     protected function runExternalAiAnalysis(VendorAssessment $assessment): void
     {
         $apiKey = config('services.openai.api_key');
         $model = config('services.openai.model', 'gpt-4o-mini');
+
+        // Skip AI when DBD data is unavailable to prevent hallucination
+        if (!$assessment->hasDbdData()) {
+            Log::info("No DBD data for external tax ID {$assessment->tax_id}, using rule-based analysis to prevent AI hallucination");
+            $this->runExternalRuleBasedAnalysis($assessment);
+            return;
+        }
 
         // Build prompt from DBD data
         $prompt = $this->buildExternalPrompt($assessment);
@@ -441,7 +459,7 @@ PROMPT;
         $assessment->update([
             'risk_score' => $riskScore,
             'risk_level' => $riskLevel,
-            'ai_summary' => "ตรวจสอบ " . ($assessment->dbd_name_th ?? $assessment->tax_id) . ": ระดับความเสี่ยง" . match($riskLevel) { 'low' => 'ต่ำ', 'medium' => 'ปานกลาง', 'high' => 'สูง', 'critical' => 'วิกฤต' },
+            'ai_summary' => "[Rule-Based] ตรวจสอบ " . ($assessment->dbd_name_th ?? $assessment->tax_id) . ": ระดับความเสี่ยง" . match($riskLevel) { 'low' => 'ต่ำ', 'medium' => 'ปานกลาง', 'high' => 'สูง', 'critical' => 'วิกฤต' } . ($assessment->hasDbdData() ? '' : ' (ไม่สามารถเชื่อมต่อ DBD ได้ — ใช้ข้อมูลเบื้องต้นเท่านั้น)'),
             'ai_risk_factors' => $riskFactors,
             'ai_strengths' => $strengths,
             'ai_recommendations' => !empty($riskFactors)

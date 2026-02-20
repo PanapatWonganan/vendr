@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ValueAnalysis extends Model
 {
@@ -65,6 +66,45 @@ class ValueAnalysis extends Model
     public function approver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by');
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(ValueAnalysisItem::class)->orderBy('line_number');
+    }
+
+    /**
+     * Recalculate agreed_amount from items
+     */
+    public function recalculateFromItems(): void
+    {
+        $this->update([
+            'agreed_amount' => $this->items()->sum('agreed_amount'),
+        ]);
+    }
+
+    /**
+     * Copy items from the linked PR and pre-fill estimated prices
+     */
+    public function copyItemsFromPR(): void
+    {
+        $pr = $this->purchaseRequisition;
+        if (!$pr) return;
+
+        foreach ($pr->items as $index => $prItem) {
+            $this->items()->create([
+                'purchase_requisition_item_id' => $prItem->id,
+                'line_number' => $index + 1,
+                'item_code' => $prItem->item_code,
+                'description' => $prItem->description,
+                'quantity' => $prItem->quantity,
+                'unit_of_measure' => $prItem->unit_of_measure,
+                'estimated_unit_price' => $prItem->estimated_unit_price ?? 0,
+                'estimated_amount' => $prItem->estimated_amount ?? ($prItem->quantity * ($prItem->estimated_unit_price ?? 0)),
+                'agreed_unit_price' => $prItem->estimated_unit_price ?? 0, // Default to PR price
+                'agreed_amount' => $prItem->estimated_amount ?? ($prItem->quantity * ($prItem->estimated_unit_price ?? 0)),
+            ]);
+        }
     }
 
     // Helper Methods

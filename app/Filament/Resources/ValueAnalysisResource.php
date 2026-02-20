@@ -54,11 +54,32 @@ class ValueAnalysisResource extends Resource
                     ->live()
                     ->afterStateUpdated(function ($state, $set) {
                         if ($state) {
-                            $pr = \App\Models\PurchaseRequisition::find($state);
+                            $pr = \App\Models\PurchaseRequisition::with('items')->find($state);
                             if ($pr) {
                                 $set('work_type', $pr->work_type);
                                 $set('procurement_method', $pr->procurement_method);
                                 $set('total_budget', $pr->total_amount ?: $pr->procurement_budget);
+
+                                // Auto-copy PR items into VA items
+                                $vaItems = $pr->items->map(function ($item, $index) {
+                                    $estAmount = $item->estimated_amount ?? ($item->quantity * ($item->estimated_unit_price ?? 0));
+                                    return [
+                                        'purchase_requisition_item_id' => $item->id,
+                                        'line_number' => $index + 1,
+                                        'item_code' => $item->item_code,
+                                        'description' => $item->description,
+                                        'quantity' => $item->quantity,
+                                        'unit_of_measure' => $item->unit_of_measure,
+                                        'estimated_unit_price' => $item->estimated_unit_price ?? 0,
+                                        'estimated_amount' => $estAmount,
+                                        'agreed_unit_price' => $item->estimated_unit_price ?? 0,
+                                        'agreed_amount' => $estAmount,
+                                        'remarks' => null,
+                                    ];
+                                })->toArray();
+
+                                $set('items', $vaItems);
+                                $set('agreed_amount', collect($vaItems)->sum('agreed_amount'));
                             }
                         }
                     })
@@ -74,59 +95,177 @@ class ValueAnalysisResource extends Resource
                 Forms\Components\Textarea::make('procured_from')
                     ->label('Procured From (Vendor/Supplier)')
                     ->columnSpanFull(),
-                Forms\Components\TextInput::make('total_budget')
-                    ->label('Original Budget (THB)')
-                    ->numeric()
-                    ->prefix('₿')
-                    ->default(null),
-                Forms\Components\TextInput::make('agreed_amount')
-                    ->label('Negotiated Amount (THB)')
-                    ->numeric()
-                    ->prefix('₿')
-                    ->default(null),
-                Forms\Components\TextInput::make('currency')
-                    ->required()
-                    ->maxLength(3)
-                    ->default('THB'),
-                Forms\Components\Textarea::make('analysis_objective')
-                    ->columnSpanFull(),
-                Forms\Components\Textarea::make('analysis_scope')
-                    ->columnSpanFull(),
-                Forms\Components\Textarea::make('evaluation_criteria')
-                    ->columnSpanFull(),
-                Forms\Components\Textarea::make('alternatives')
-                    ->columnSpanFull(),
-                Forms\Components\Textarea::make('comparison_matrix')
-                    ->columnSpanFull(),
-                Forms\Components\Textarea::make('recommendations')
-                    ->columnSpanFull(),
-                Forms\Components\Textarea::make('conclusion')
-                    ->columnSpanFull(),
-                Forms\Components\Select::make('status')
-                    ->options([
-                        'draft' => 'Draft',
-                        'in_progress' => 'In Progress',
-                        'completed' => 'Completed',
-                        'approved' => 'Approved',
-                        'rejected' => 'Rejected',
+                Forms\Components\Grid::make(3)->schema([
+                    Forms\Components\TextInput::make('total_budget')
+                        ->label('งบประมาณจาก PR (THB)')
+                        ->numeric()
+                        ->prefix('฿')
+                        ->readonly()
+                        ->dehydrated(true)
+                        ->helperText('ดึงอัตโนมัติจาก PR'),
+                    Forms\Components\TextInput::make('agreed_amount')
+                        ->label('วงเงินที่ตกลง (THB)')
+                        ->numeric()
+                        ->prefix('฿')
+                        ->readonly()
+                        ->dehydrated(true)
+                        ->helperText('คำนวณจากรายการด้านล่าง'),
+                    Forms\Components\TextInput::make('currency')
+                        ->required()
+                        ->maxLength(3)
+                        ->default('THB'),
+                ]),
+
+                // VA Line Items — เปรียบเทียบราคาจาก PR กับราคาที่ตกลงได้
+                Forms\Components\Section::make('รายการสินค้า/บริการ (เปรียบเทียบราคา)')
+                    ->description('แก้ไข "ราคาที่ตกลง" ต่อรายการ เพื่อกำหนดราคาสุดท้ายก่อนสร้าง PO')
+                    ->schema([
+                        Forms\Components\Repeater::make('items')
+                            ->relationship()
+                            ->schema([
+                                Forms\Components\Grid::make(5)->schema([
+                                    Forms\Components\TextInput::make('item_code')
+                                        ->label('รหัส')
+                                        ->maxLength(50)
+                                        ->disabled(),
+                                    Forms\Components\Textarea::make('description')
+                                        ->label('รายละเอียด')
+                                        ->required()
+                                        ->rows(2)
+                                        ->columnSpan(2),
+                                    Forms\Components\TextInput::make('quantity')
+                                        ->label('จำนวน')
+                                        ->numeric()
+                                        ->required()
+                                        ->disabled()
+                                        ->dehydrated(true),
+                                    Forms\Components\TextInput::make('unit_of_measure')
+                                        ->label('หน่วย')
+                                        ->required()
+                                        ->disabled()
+                                        ->dehydrated(true),
+                                ]),
+                                Forms\Components\Grid::make(4)->schema([
+                                    Forms\Components\TextInput::make('estimated_unit_price')
+                                        ->label('ราคาประมาณการ (จาก PR)')
+                                        ->numeric()
+                                        ->prefix('฿')
+                                        ->disabled()
+                                        ->dehydrated(true)
+                                        ->helperText('จาก PR'),
+                                    Forms\Components\TextInput::make('agreed_unit_price')
+                                        ->label('ราคาที่ตกลง')
+                                        ->numeric()
+                                        ->prefix('฿')
+                                        ->required()
+                                        ->step(0.01)
+                                        ->minValue(0)
+                                        ->live(onBlur: true)
+                                        ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                            $qty = (float) ($get('quantity') ?? 0);
+                                            $price = (float) ($state ?? 0);
+                                            $set('agreed_amount', round($qty * $price, 2));
+                                        })
+                                        ->helperText('แก้ไขได้'),
+                                    Forms\Components\TextInput::make('agreed_amount')
+                                        ->label('รวม (ตกลง)')
+                                        ->numeric()
+                                        ->prefix('฿')
+                                        ->readonly()
+                                        ->dehydrated(true),
+                                    Forms\Components\TextInput::make('remarks')
+                                        ->label('หมายเหตุ')
+                                        ->placeholder('เหตุผลการปรับราคา'),
+                                ]),
+                                Forms\Components\Hidden::make('line_number')->default(1),
+                                Forms\Components\Hidden::make('purchase_requisition_item_id'),
+                                Forms\Components\Hidden::make('estimated_amount'),
+                            ])
+                            ->addable(false)
+                            ->deletable(false)
+                            ->reorderable(false)
+                            ->collapsible()
+                            ->itemLabel(fn (array $state): ?string =>
+                                ($state['item_code'] ?? '') . ' ' . mb_substr($state['description'] ?? '', 0, 50)
+                            ),
+
+                        Forms\Components\Actions::make([
+                            Forms\Components\Actions\Action::make('recalculate_totals')
+                                ->label('คำนวณยอดรวมใหม่')
+                                ->icon('heroicon-o-calculator')
+                                ->color('info')
+                                ->action(function (Forms\Get $get, Forms\Set $set) {
+                                    $items = $get('items') ?? [];
+                                    $totalAgreed = 0;
+                                    foreach ($items as $item) {
+                                        $totalAgreed += (float) ($item['agreed_amount'] ?? 0);
+                                    }
+                                    $set('agreed_amount', round($totalAgreed, 2));
+                                }),
+                        ]),
+                    ]),
+
+                Forms\Components\Section::make('รายละเอียดการวิเคราะห์')
+                    ->schema([
+                        Forms\Components\Textarea::make('analysis_objective')
+                            ->label('วัตถุประสงค์')
+                            ->columnSpanFull(),
+                        Forms\Components\Textarea::make('analysis_scope')
+                            ->label('ขอบเขต')
+                            ->columnSpanFull(),
+                        Forms\Components\Textarea::make('evaluation_criteria')
+                            ->label('เกณฑ์การประเมิน')
+                            ->columnSpanFull(),
+                        Forms\Components\Textarea::make('alternatives')
+                            ->label('ทางเลือก')
+                            ->columnSpanFull(),
+                        Forms\Components\Textarea::make('comparison_matrix')
+                            ->label('ตารางเปรียบเทียบ')
+                            ->columnSpanFull(),
+                        Forms\Components\Textarea::make('recommendations')
+                            ->label('ข้อเสนอแนะ')
+                            ->columnSpanFull(),
+                        Forms\Components\Textarea::make('conclusion')
+                            ->label('สรุปผล')
+                            ->columnSpanFull(),
                     ])
-                    ->default('draft')
-                    ->required(),
-                Forms\Components\Hidden::make('created_by')
-                    ->default(fn () => auth()->id())
-                    ->required(),
-                Forms\Components\Select::make('analyzed_by')
-                    ->relationship('analyzer', 'name')
-                    ->searchable()
-                    ->preload(),
-                Forms\Components\Select::make('approved_by')
-                    ->relationship('approver', 'name')
-                    ->searchable()
-                    ->preload(),
-                Forms\Components\DateTimePicker::make('analysis_date')
-                    ->label('Analysis Date'),
-                Forms\Components\DateTimePicker::make('approved_at')
-                    ->label('Approved Date'),
+                    ->collapsed(),
+
+                Forms\Components\Section::make('สถานะ & ผู้รับผิดชอบ')
+                    ->schema([
+                        Forms\Components\Grid::make(2)->schema([
+                            Forms\Components\Select::make('status')
+                                ->label('สถานะ')
+                                ->options([
+                                    'draft' => 'ร่าง',
+                                    'in_progress' => 'กำลังวิเคราะห์',
+                                    'completed' => 'วิเคราะห์เสร็จสิ้น',
+                                    'approved' => 'อนุมัติแล้ว',
+                                    'rejected' => 'ถูกปฏิเสธ',
+                                ])
+                                ->default('draft')
+                                ->required(),
+                            Forms\Components\DateTimePicker::make('analysis_date')
+                                ->label('วันที่วิเคราะห์'),
+                        ]),
+                        Forms\Components\Grid::make(2)->schema([
+                            Forms\Components\Select::make('analyzed_by')
+                                ->label('ผู้วิเคราะห์')
+                                ->relationship('analyzer', 'name')
+                                ->searchable()
+                                ->preload(),
+                            Forms\Components\Select::make('approved_by')
+                                ->label('ผู้อนุมัติ')
+                                ->relationship('approver', 'name')
+                                ->searchable()
+                                ->preload(),
+                        ]),
+                        Forms\Components\DateTimePicker::make('approved_at')
+                            ->label('วันที่อนุมัติ'),
+                        Forms\Components\Hidden::make('created_by')
+                            ->default(fn () => auth()->id())
+                            ->required(),
+                    ]),
             ]);
     }
 

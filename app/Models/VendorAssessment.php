@@ -201,7 +201,9 @@ class VendorAssessment extends Model
 
     public function hasDbdData(): bool
     {
-        return $this->dbd_fetched_at !== null;
+        // Check that DBD actually returned meaningful data, not just that we attempted a fetch
+        return $this->dbd_fetched_at !== null
+            && ($this->dbd_status !== null || $this->dbd_name_th !== null || $this->dbd_registered_capital !== null);
     }
 
     public function hasAiAnalysis(): bool

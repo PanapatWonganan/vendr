@@ -98,6 +98,8 @@ class VendorRiskAssessmentService
 
     /**
      * Step 2: Run AI analysis using OpenAI
+     * Only uses AI when DBD data is available; otherwise falls back to rule-based
+     * to prevent AI hallucination of company information.
      */
     protected function runAiAnalysis(VendorAssessment $assessment, Vendor $vendor): void
     {
@@ -106,6 +108,13 @@ class VendorRiskAssessmentService
 
         if (!$apiKey) {
             Log::warning("OpenAI API key not configured, skipping AI analysis");
+            $this->runRuleBasedAnalysis($assessment, $vendor);
+            return;
+        }
+
+        // Skip AI when DBD data is unavailable to prevent hallucination
+        if (!$assessment->hasDbdData()) {
+            Log::info("No DBD data available for vendor {$vendor->id}, using rule-based analysis to prevent AI hallucination");
             $this->runRuleBasedAnalysis($assessment, $vendor);
             return;
         }
@@ -537,7 +546,13 @@ PROMPT;
             'critical' => 'วิกฤต',
         };
 
-        $summary = "การประเมินความเสี่ยงของ {$vendor->company_name}: ระดับความเสี่ยง{$levelTh} (คะแนน {$score}/100) ";
+        $summary = "[Rule-Based] การประเมินความเสี่ยงของ {$vendor->company_name}: ระดับความเสี่ยง{$levelTh} (คะแนน {$score}/100) ";
+
+        // Check if DBD data was unavailable
+        $hasDbdWarning = collect($risks)->contains(fn ($r) => str_contains($r, 'ไม่สามารถตรวจสอบ'));
+        if ($hasDbdWarning) {
+            $summary .= "** ไม่สามารถเชื่อมต่อ DBD ได้ — ผลประเมินใช้ข้อมูลภายในเท่านั้น ** ";
+        }
 
         if (!empty($strengths)) {
             $summary .= "จุดแข็ง: " . $strengths[0] . " ";

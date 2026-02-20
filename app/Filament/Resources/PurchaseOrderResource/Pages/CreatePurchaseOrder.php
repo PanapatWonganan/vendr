@@ -106,7 +106,7 @@ class CreatePurchaseOrder extends CreateRecord
         // Pre-fill form data if created from Purchase Requisition
         $prId = request()->get('purchase_requisition_id');
         if ($prId) {
-            $pr = PurchaseRequisition::find($prId);
+            $pr = PurchaseRequisition::with(['items', 'valueAnalysis.items'])->find($prId);
             if ($pr) {
                 // Prepare form data
                 $formData = [
@@ -135,21 +135,40 @@ class CreatePurchaseOrder extends CreateRecord
                     }
                 }
 
-                // ✅ Copy items from PR if they exist  
-                $formData['items'] = $pr->items->map(function ($item) {
-                    return [
-                        'item_code' => $item->item_code,
-                        'description' => $item->description,
-                        'quantity' => $item->quantity,
-                        'unit_of_measure' => $item->unit_of_measure,
-                        'unit_price' => $item->estimated_unit_price ?? 0,
-                        'total_price' => ($item->quantity * ($item->estimated_unit_price ?? 0)),
-                        'status' => 'ordered',
-                    ];
-                })->toArray();
+                // Check if PR has an approved VA — use VA prices instead of PR prices
+                $va = $pr->valueAnalysis;
+                if ($va && $va->status === 'approved' && $va->items->isNotEmpty()) {
+                    // Use VA items (agreed/negotiated prices)
+                    $formData['items'] = $va->items->map(function ($vaItem) {
+                        return [
+                            'item_code' => $vaItem->item_code,
+                            'description' => $vaItem->description,
+                            'quantity' => $vaItem->quantity,
+                            'unit_of_measure' => $vaItem->unit_of_measure,
+                            'unit_price' => $vaItem->agreed_unit_price ?? 0,
+                            'total_price' => $vaItem->agreed_amount ?? ($vaItem->quantity * ($vaItem->agreed_unit_price ?? 0)),
+                            'status' => 'ordered',
+                        ];
+                    })->toArray();
 
-                // ✅ คำนวณ total amounts จาก PR
-                $subtotal = $pr->total_amount ?? 0;
+                    $subtotal = (float) $va->agreed_amount ?: collect($formData['items'])->sum('total_price');
+                } else {
+                    // Fallback: Copy items from PR (no VA available)
+                    $formData['items'] = $pr->items->map(function ($item) {
+                        return [
+                            'item_code' => $item->item_code,
+                            'description' => $item->description,
+                            'quantity' => $item->quantity,
+                            'unit_of_measure' => $item->unit_of_measure,
+                            'unit_price' => $item->estimated_unit_price ?? 0,
+                            'total_price' => ($item->quantity * ($item->estimated_unit_price ?? 0)),
+                            'status' => 'ordered',
+                        ];
+                    })->toArray();
+
+                    $subtotal = $pr->total_amount ?? 0;
+                }
+
                 $taxAmount = $subtotal * 0.07;  // VAT 7%
                 $totalAmount = $subtotal + $taxAmount;
 
