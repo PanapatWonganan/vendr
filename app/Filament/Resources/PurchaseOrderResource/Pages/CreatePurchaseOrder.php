@@ -106,22 +106,22 @@ class CreatePurchaseOrder extends CreateRecord
         // Pre-fill form data if created from Purchase Requisition
         $prId = request()->get('purchase_requisition_id');
         if ($prId) {
-            $pr = PurchaseRequisition::with(['items', 'valueAnalysis.items'])->find($prId);
+            $pr = PurchaseRequisition::with(['items', 'valueAnalysis'])->find($prId);
             if ($pr) {
                 // Prepare form data
                 $formData = [
                     'purchase_requisition_id' => $pr->id,
                     'po_title' => $pr->title,
                     'work_type' => $pr->work_type,
-                    'form_category' => $pr->form_category,  // ✅ เพิ่ม form_category จาก PR
+                    'form_category' => $pr->form_category,
                     'procurement_method' => $pr->procurement_method,
                     'department_id' => $pr->department_id,
                     'expected_delivery_date' => $pr->expected_delivery_date,
-                    'order_date' => now(),  // ✅ เพิ่ม order_date
-                    'currency' => $pr->currency ?? 'THB',  // ✅ เพิ่ม currency จาก PR
+                    'order_date' => now(),
+                    'currency' => $pr->currency ?? 'THB',
                 ];
 
-                // ✅ Auto-match vendor จาก supplier information
+                // Auto-match vendor from supplier information
                 if ($pr->supplier_name) {
                     $vendor = \App\Models\Vendor::where('company_name', 'like', '%' . $pr->supplier_name . '%')->first();
                     if ($vendor) {
@@ -129,54 +129,40 @@ class CreatePurchaseOrder extends CreateRecord
                         $formData['contact_name'] = $vendor->contact_name;
                         $formData['contact_email'] = $vendor->contact_email;
                     } else {
-                        // ถ้าไม่เจอ vendor ให้ใช้ข้อมูลจาก PR
                         $formData['contact_name'] = $pr->supplier_contact;
                         $formData['contact_email'] = $pr->supplier_email;
                     }
                 }
 
-                // Check if PR has an approved VA — use VA prices instead of PR prices
+                // Copy items from PR
+                $formData['items'] = $pr->items->map(function ($item) {
+                    return [
+                        'item_code' => $item->item_code,
+                        'description' => $item->description,
+                        'quantity' => $item->quantity,
+                        'unit_of_measure' => $item->unit_of_measure,
+                        'unit_price' => $item->estimated_unit_price ?? 0,
+                        'total_price' => $item->estimated_amount ?? ($item->quantity * ($item->estimated_unit_price ?? 0)),
+                        'status' => 'ordered',
+                    ];
+                })->toArray();
+
+                // Use VA agreed_amount for totals (negotiated price)
                 $va = $pr->valueAnalysis;
-                if ($va && $va->status === 'approved' && $va->items->isNotEmpty()) {
-                    // Use VA items (agreed/negotiated prices)
-                    $formData['items'] = $va->items->map(function ($vaItem) {
-                        return [
-                            'item_code' => $vaItem->item_code,
-                            'description' => $vaItem->description,
-                            'quantity' => $vaItem->quantity,
-                            'unit_of_measure' => $vaItem->unit_of_measure,
-                            'unit_price' => $vaItem->agreed_unit_price ?? 0,
-                            'total_price' => $vaItem->agreed_amount ?? ($vaItem->quantity * ($vaItem->agreed_unit_price ?? 0)),
-                            'status' => 'ordered',
-                        ];
-                    })->toArray();
-
-                    $subtotal = (float) $va->agreed_amount ?: collect($formData['items'])->sum('total_price');
+                if ($va && $va->status === 'approved' && $va->agreed_amount > 0) {
+                    $subtotal = (float) $va->agreed_amount;
                 } else {
-                    // Fallback: Copy items from PR (no VA available)
-                    $formData['items'] = $pr->items->map(function ($item) {
-                        return [
-                            'item_code' => $item->item_code,
-                            'description' => $item->description,
-                            'quantity' => $item->quantity,
-                            'unit_of_measure' => $item->unit_of_measure,
-                            'unit_price' => $item->estimated_unit_price ?? 0,
-                            'total_price' => ($item->quantity * ($item->estimated_unit_price ?? 0)),
-                            'status' => 'ordered',
-                        ];
-                    })->toArray();
-
-                    $subtotal = $pr->total_amount ?? 0;
+                    $subtotal = $pr->total_amount ?? collect($formData['items'])->sum('total_price');
                 }
 
-                $taxAmount = $subtotal * 0.07;  // VAT 7%
+                $taxAmount = $subtotal * 0.07;
                 $totalAmount = $subtotal + $taxAmount;
 
                 $formData['subtotal'] = round($subtotal, 2);
                 $formData['tax_amount'] = round($taxAmount, 2);
                 $formData['total_amount'] = round($totalAmount, 2);
 
-                // ✅ ลองหา delivery address จาก department
+                // Delivery address from department
                 if ($pr->department_id) {
                     $department = \App\Models\Department::find($pr->department_id);
                     if ($department && !empty($department->address)) {

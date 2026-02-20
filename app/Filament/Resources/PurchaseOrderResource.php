@@ -101,48 +101,33 @@ class PurchaseOrderResource extends Resource
                             ->live()
                             ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
                                 if ($state) {
-                                    $pr = PurchaseRequisition::with(['items', 'valueAnalysis.items'])->find($state);
+                                    $pr = PurchaseRequisition::with(['items', 'valueAnalysis'])->find($state);
                                     if ($pr) {
                                         // Auto-fill PO title from PR
                                         $set('po_title', $pr->title ?? $pr->description);
 
                                         $va = $pr->valueAnalysis;
 
-                                        if ($va && $va->status === 'approved' && $va->items->isNotEmpty()) {
-                                            // Use VA items (agreed prices) instead of PR items
-                                            $poItems = $va->items->map(function ($vaItem) {
-                                                return [
-                                                    'item_code' => $vaItem->item_code,
-                                                    'description' => $vaItem->description,
-                                                    'quantity' => $vaItem->quantity,
-                                                    'unit_of_measure' => $vaItem->unit_of_measure,
-                                                    'unit_price' => $vaItem->agreed_unit_price,
-                                                    'line_total' => $vaItem->agreed_amount,
-                                                    'status' => 'ordered',
-                                                    'line_number' => $vaItem->line_number ?? 1,
-                                                ];
-                                            })->toArray();
+                                        // Copy items from PR (details like item_code, description, qty)
+                                        $poItems = $pr->items->map(function ($item) {
+                                            return [
+                                                'item_code' => $item->item_code,
+                                                'description' => $item->description,
+                                                'quantity' => $item->quantity,
+                                                'unit_of_measure' => $item->unit_of_measure,
+                                                'unit_price' => $item->estimated_unit_price,
+                                                'line_total' => $item->estimated_amount ?? ($item->quantity * ($item->estimated_unit_price ?? 0)),
+                                                'status' => 'ordered',
+                                                'line_number' => $item->line_number ?? 1,
+                                            ];
+                                        })->toArray();
 
-                                            $set('items', $poItems);
+                                        $set('items', $poItems);
 
-                                            // Calculate totals from VA agreed amounts
-                                            $itemsTotal = (float) $va->agreed_amount ?: collect($poItems)->sum('line_total');
+                                        // Use VA agreed_amount for totals (negotiated price)
+                                        if ($va && $va->status === 'approved' && $va->agreed_amount > 0) {
+                                            $itemsTotal = (float) $va->agreed_amount;
                                         } else {
-                                            // Fallback to PR items if VA has no items
-                                            $poItems = $pr->items->map(function ($item) {
-                                                return [
-                                                    'item_code' => $item->item_code,
-                                                    'description' => $item->description,
-                                                    'quantity' => $item->quantity,
-                                                    'unit_of_measure' => $item->unit_of_measure,
-                                                    'unit_price' => $item->estimated_unit_price,
-                                                    'line_total' => $item->estimated_amount,
-                                                    'status' => 'ordered',
-                                                    'line_number' => $item->line_number ?? 1,
-                                                ];
-                                            })->toArray();
-
-                                            $set('items', $poItems);
                                             $itemsTotal = collect($poItems)->sum('line_total');
                                         }
 
