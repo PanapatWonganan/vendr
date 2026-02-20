@@ -149,13 +149,18 @@ class CreatePurchaseOrder extends CreateRecord
 
                 // ยอดรวมใช้จาก VA agreed_amount (ราคาที่ตกลงจริง)
                 $va = $pr->valueAnalysis;
-                $subtotal = ($va && $va->status === 'approved' && $va->agreed_amount > 0)
+                $vaAmount = ($va && $va->status === 'approved' && $va->agreed_amount > 0)
                     ? (float) $va->agreed_amount
-                    : ($pr->total_amount ?? collect($formData['items'])->sum('total_price'));
+                    : null;
 
+                // items_total = ยอดจาก VA หรือรวมจาก PR items
+                $itemsTotal = $vaAmount ?? ($pr->total_amount ?? collect($formData['items'])->sum('total_price'));
+                $subtotal = $itemsTotal;
                 $taxAmount = $subtotal * 0.07;
                 $totalAmount = $subtotal + $taxAmount;
 
+                $formData['items_total'] = round($itemsTotal, 2);
+                $formData['discount_amount'] = 0.00;
                 $formData['subtotal'] = round($subtotal, 2);
                 $formData['tax_amount'] = round($taxAmount, 2);
                 $formData['total_amount'] = round($totalAmount, 2);
