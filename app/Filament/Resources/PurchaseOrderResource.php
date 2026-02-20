@@ -24,7 +24,7 @@ class PurchaseOrderResource extends Resource
     protected static ?string $modelLabel = 'ใบสั่งซื้อ';
     protected static ?string $pluralModelLabel = 'ใบสั่งซื้อ';
     protected static ?string $navigationGroup = 'Procurement Management';
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 7;
     
     public static function getNavigationBadge(): ?string
     {
