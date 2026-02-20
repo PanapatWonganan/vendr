@@ -127,7 +127,8 @@ class ValueAnalysisResource extends Resource
                                     Forms\Components\TextInput::make('item_code')
                                         ->label('รหัส')
                                         ->maxLength(50)
-                                        ->disabled(),
+                                        ->readOnly()
+                                        ->dehydrated(true),
                                     Forms\Components\Textarea::make('description')
                                         ->label('รายละเอียด')
                                         ->required()
@@ -137,12 +138,12 @@ class ValueAnalysisResource extends Resource
                                         ->label('จำนวน')
                                         ->numeric()
                                         ->required()
-                                        ->disabled()
+                                        ->readOnly()
                                         ->dehydrated(true),
                                     Forms\Components\TextInput::make('unit_of_measure')
                                         ->label('หน่วย')
                                         ->required()
-                                        ->disabled()
+                                        ->readOnly()
                                         ->dehydrated(true),
                                 ]),
                                 Forms\Components\Grid::make(4)->schema([
@@ -150,7 +151,7 @@ class ValueAnalysisResource extends Resource
                                         ->label('ราคาประมาณการ (จาก PR)')
                                         ->numeric()
                                         ->prefix('฿')
-                                        ->disabled()
+                                        ->readOnly()
                                         ->dehydrated(true)
                                         ->helperText('จาก PR'),
                                     Forms\Components\TextInput::make('agreed_unit_price')
