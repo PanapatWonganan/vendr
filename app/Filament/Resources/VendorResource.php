@@ -71,7 +71,15 @@ class VendorResource extends Resource
                         Vendor::STATUS_SUSPENDED => 'ระงับ',
                     ])
                     ->default(Vendor::STATUS_PENDING),
-                Forms\Components\Textarea::make('documents')
+                Forms\Components\FileUpload::make('documents')
+                    ->label('เอกสาร')
+                    ->multiple()
+                    ->directory('vendor-documents')
+                    ->acceptedFileTypes(['application/pdf', 'image/*', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
+                    ->maxSize(10240) // 10MB per file
+                    ->downloadable()
+                    ->openable()
+                    ->reorderable()
                     ->columnSpanFull(),
             ]);
     }
