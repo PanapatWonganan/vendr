@@ -125,18 +125,15 @@ class PurchaseOrderResource extends Resource
                                         $set('items', $poItems);
 
                                         // ยอดรวมใช้จาก VA agreed_amount (ราคาที่ตกลงจริง)
-                                        $itemsTotal = ($va && $va->status === 'approved' && $va->agreed_amount > 0)
+                                        $vaAmount = ($va && $va->status === 'approved' && $va->agreed_amount > 0)
                                             ? (float) $va->agreed_amount
                                             : collect($poItems)->sum('line_total');
 
-                                        $discountAmount = 0.0;
-                                        $subtotal = $itemsTotal - $discountAmount;
-                                        $taxAmount = $subtotal * 0.07;
-                                        $totalAmount = $subtotal + $taxAmount;
+                                        $taxAmount = $vaAmount * 0.07;
+                                        $totalAmount = $vaAmount + $taxAmount;
 
-                                        $set('items_total', round($itemsTotal, 2));
-                                        $set('discount_amount', 0.00);
-                                        $set('subtotal', round($subtotal, 2));
+                                        $set('items_total', round($vaAmount, 2));
+                                        $set('subtotal', round($vaAmount, 2));
                                         $set('tax_amount', round($taxAmount, 2));
                                         $set('total_amount', round($totalAmount, 2));
                                     }
@@ -270,28 +267,15 @@ class PurchaseOrderResource extends Resource
                                 ->minValue(0.0001),
                         ]),
 
-                        Forms\Components\Grid::make(3)->schema([
+                        Forms\Components\Grid::make(2)->schema([
                             Forms\Components\TextInput::make('items_total')
-                                ->label('ยอดรวมจากรายการสินค้า')
+                                ->label('ยอดจาก VA (ตกลงราคา)')
                                 ->numeric()
                                 ->prefix('฿')
                                 ->default(0.00)
                                 ->readonly()
                                 ->dehydrated(false)
-                                ->helperText('คำนวณอัตโนมัติจากรายการสินค้า'),
-
-                            Forms\Components\TextInput::make('discount_amount')
-                                ->label('ส่วนลด/ปรับราคา')
-                                ->numeric()
-                                ->prefix('฿')
-                                ->default(0.00)
-                                ->step(0.01)
-                                ->minValue(0)
-                                ->live(onBlur: true)
-                                ->helperText('กรอกจำนวนส่วนลดที่ได้จากการต่อรอง')
-                                ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
-                                    static::updatePOTotals($get, $set);
-                                }),
+                                ->helperText('ดึงอัตโนมัติจาก Vendor Approve'),
 
                             Forms\Components\TextInput::make('subtotal')
                                 ->label('ยอดสุทธิ (ไม่รวม VAT)')
@@ -300,15 +284,8 @@ class PurchaseOrderResource extends Resource
                                 ->default(0.00)
                                 ->readonly()
                                 ->dehydrated(true)
-                                ->helperText('= ยอดรวมสินค้า - ส่วนลด'),
+                                ->helperText('เท่ากับยอดจาก VA'),
                         ]),
-
-                        Forms\Components\Textarea::make('discount_reason')
-                            ->label('เหตุผลการลดราคา/ปรับราคา')
-                            ->rows(2)
-                            ->placeholder('เช่น ต่อรองราคาได้, โปรโมชั่นพิเศษ, ส่วนลดปริมาณ')
-                            ->visible(fn (Forms\Get $get) => (float) ($get('discount_amount') ?? 0) > 0)
-                            ->columnSpanFull(),
 
                         Forms\Components\Grid::make(2)->schema([
                             Forms\Components\TextInput::make('tax_amount')
@@ -326,17 +303,6 @@ class PurchaseOrderResource extends Resource
                                 ->default(0.00)
                                 ->readonly()
                                 ->dehydrated(true),
-                        ]),
-
-                        Forms\Components\Actions::make([
-                            Forms\Components\Actions\Action::make('recalculate_from_items')
-                                ->label('คำนวณใหม่จากรายการสินค้า')
-                                ->icon('heroicon-o-calculator')
-                                ->color('info')
-                                ->action(function (Forms\Get $get, Forms\Set $set) {
-                                    static::updatePOTotals($get, $set);
-                                })
-                                ->visible(fn (Forms\Get $get) => count($get('items') ?? []) > 0),
                         ]),
                     ]),
 
@@ -386,105 +352,57 @@ class PurchaseOrderResource extends Resource
                             ->minItems(0),
                     ]),
 
-                // รายการสินค้า
-                Forms\Components\Section::make('รายการสินค้า')
+                // รายการสินค้า (ดึงจาก PR อัตโนมัติ — ดูอย่างเดียว)
+                Forms\Components\Section::make('รายการสินค้า (จาก PR)')
+                    ->description('รายการสินค้าดึงจากใบ PR อัตโนมัติ ยอดรวมใช้จาก VA')
                     ->schema([
                         Forms\Components\Repeater::make('items')
                             ->schema([
                                 Forms\Components\Grid::make(4)->schema([
                                     Forms\Components\TextInput::make('item_code')
                                         ->label('รหัสสินค้า')
-                                        ->maxLength(50),
+                                        ->readOnly(),
 
-                                    Forms\Components\Textarea::make('description')
+                                    Forms\Components\TextInput::make('description')
                                         ->label('รายละเอียด')
-                                        ->required()
-                                        ->rows(2),
+                                        ->readOnly(),
 
                                     Forms\Components\TextInput::make('quantity')
                                         ->label('จำนวน')
                                         ->numeric()
-                                        ->required()
-                                        ->minValue(0.01)
-                                        ->step(0.01)
-                                        ->live()
-                                        ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
-                                            $unitPrice = (float) ($get('unit_price') ?? 0);
-                                            $quantity = (float) ($state ?? 0);
-                                            $set('line_total', $quantity * $unitPrice);
-                                            // Ensure status is set
-                                            if (!$get('status')) {
-                                                $set('status', 'ordered');
-                                            }
-                                            static::updatePOTotals($get, $set);
-                                        }),
-                                        
+                                        ->readOnly(),
+
                                     Forms\Components\TextInput::make('unit_of_measure')
                                         ->label('หน่วย')
-                                        ->required()
-                                        ->maxLength(50),
+                                        ->readOnly(),
                                 ]),
-                                
-                                Forms\Components\Grid::make(3)->schema([
+
+                                Forms\Components\Grid::make(2)->schema([
                                     Forms\Components\TextInput::make('unit_price')
-                                        ->label('ราคาต่อหน่วย')
+                                        ->label('ราคาต่อหน่วย (ประมาณการ)')
                                         ->numeric()
                                         ->prefix('฿')
-                                        ->minValue(0)
-                                        ->step(0.01)
-                                        ->live()
-                                        ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
-                                            $quantity = (float) ($get('quantity') ?? 0);
-                                            $unitPrice = (float) ($state ?? 0);
-                                            $set('line_total', $quantity * $unitPrice);
-                                            // Ensure status is set
-                                            if (!$get('status')) {
-                                                $set('status', 'ordered');
-                                            }
-                                            static::updatePOTotals($get, $set);
-                                        }),
+                                        ->readOnly(),
 
                                     Forms\Components\TextInput::make('line_total')
                                         ->label('รวม')
                                         ->numeric()
                                         ->prefix('฿')
-                                        ->readonly(),
-                                        
-                                    Forms\Components\Select::make('status')
-                                        ->label('สถานะ')
-                                        ->options([
-                                            'ordered' => 'สั่งซื้อแล้ว',
-                                            'partially_received' => 'รับบางส่วน',
-                                            'fully_received' => 'รับครบแล้ว',
-                                            'cancelled' => 'ยกเลิก',
-                                        ])
-                                        ->default('ordered'),
+                                        ->readOnly(),
                                 ]),
-                                
+
                                 Forms\Components\Hidden::make('line_number')
                                     ->default(1),
                                 Forms\Components\Hidden::make('status')
                                     ->default('ordered'),
                             ])
-                            ->addActionLabel('เพิ่มรายการสินค้า')
-                            ->reorderableWithButtons()
-                            ->collapsible()
-                            ->cloneable()
-                            ->minItems(1)
-                            ->live()
-                            ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
-                                // Update line numbers and ensure status is set
-                                if (is_array($state)) {
-                                    foreach ($state as $index => $item) {
-                                        $set("items.{$index}.line_number", (int)$index + 1);
-                                        if (!isset($item['status']) || empty($item['status'])) {
-                                            $set("items.{$index}.status", 'ordered');
-                                        }
-                                    }
-                                }
-                                static::updatePOTotals($get, $set);
-                            }),
-                    ]),
+                            ->addable(false)
+                            ->deletable(false)
+                            ->reorderable(false)
+                            ->minItems(0),
+                    ])
+                    ->collapsed()
+                    ->collapsible(),
 
                 // งวดการจ่ายเงิน (Payment Milestones)
                 Forms\Components\Section::make('งวดการจ่ายเงิน (Payment Milestones)')
