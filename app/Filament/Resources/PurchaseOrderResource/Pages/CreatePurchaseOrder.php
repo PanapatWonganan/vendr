@@ -134,26 +134,27 @@ class CreatePurchaseOrder extends CreateRecord
                     }
                 }
 
-                // Copy items from PR
-                $formData['items'] = $pr->items->map(function ($item) {
+                // Calculate price ratio from VA
+                $va = $pr->valueAnalysis;
+                $prTotal = $pr->items->sum(fn ($item) => ($item->quantity ?? 0) * ($item->estimated_unit_price ?? 0));
+                $vaAgreed = ($va && $va->status === 'approved' && $va->agreed_amount > 0) ? (float) $va->agreed_amount : 0;
+                $ratio = ($vaAgreed > 0 && $prTotal > 0) ? ($vaAgreed / $prTotal) : 1;
+
+                // Copy items from PR with adjusted prices from VA
+                $formData['items'] = $pr->items->map(function ($item) use ($ratio) {
+                    $adjustedPrice = round(($item->estimated_unit_price ?? 0) * $ratio, 2);
                     return [
                         'item_code' => $item->item_code,
                         'description' => $item->description,
                         'quantity' => $item->quantity,
                         'unit_of_measure' => $item->unit_of_measure,
-                        'unit_price' => $item->estimated_unit_price ?? 0,
-                        'total_price' => $item->estimated_amount ?? ($item->quantity * ($item->estimated_unit_price ?? 0)),
+                        'unit_price' => $adjustedPrice,
+                        'total_price' => round(($item->quantity ?? 0) * $adjustedPrice, 2),
                         'status' => 'ordered',
                     ];
                 })->toArray();
 
-                // Use VA agreed_amount for totals (negotiated price)
-                $va = $pr->valueAnalysis;
-                if ($va && $va->status === 'approved' && $va->agreed_amount > 0) {
-                    $subtotal = (float) $va->agreed_amount;
-                } else {
-                    $subtotal = $pr->total_amount ?? collect($formData['items'])->sum('total_price');
-                }
+                $subtotal = $vaAgreed > 0 ? $vaAgreed : ($pr->total_amount ?? collect($formData['items'])->sum('total_price'));
 
                 $taxAmount = $subtotal * 0.07;
                 $totalAmount = $subtotal + $taxAmount;

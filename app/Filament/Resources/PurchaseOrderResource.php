@@ -108,15 +108,21 @@ class PurchaseOrderResource extends Resource
 
                                         $va = $pr->valueAnalysis;
 
-                                        // Copy items from PR (details like item_code, description, qty)
-                                        $poItems = $pr->items->map(function ($item) {
+                                        // Calculate price ratio from VA
+                                        $prTotal = $pr->items->sum(fn ($item) => ($item->quantity ?? 0) * ($item->estimated_unit_price ?? 0));
+                                        $vaAgreed = ($va && $va->status === 'approved' && $va->agreed_amount > 0) ? (float) $va->agreed_amount : 0;
+                                        $ratio = ($vaAgreed > 0 && $prTotal > 0) ? ($vaAgreed / $prTotal) : 1;
+
+                                        // Copy items from PR with adjusted prices from VA
+                                        $poItems = $pr->items->map(function ($item) use ($ratio) {
+                                            $adjustedPrice = round(($item->estimated_unit_price ?? 0) * $ratio, 2);
                                             return [
                                                 'item_code' => $item->item_code,
                                                 'description' => $item->description,
                                                 'quantity' => $item->quantity,
                                                 'unit_of_measure' => $item->unit_of_measure,
-                                                'unit_price' => $item->estimated_unit_price,
-                                                'line_total' => $item->estimated_amount ?? ($item->quantity * ($item->estimated_unit_price ?? 0)),
+                                                'unit_price' => $adjustedPrice,
+                                                'line_total' => round(($item->quantity ?? 0) * $adjustedPrice, 2),
                                                 'status' => 'ordered',
                                                 'line_number' => $item->line_number ?? 1,
                                             ];
@@ -124,12 +130,7 @@ class PurchaseOrderResource extends Resource
 
                                         $set('items', $poItems);
 
-                                        // Use VA agreed_amount for totals (negotiated price)
-                                        if ($va && $va->status === 'approved' && $va->agreed_amount > 0) {
-                                            $itemsTotal = (float) $va->agreed_amount;
-                                        } else {
-                                            $itemsTotal = collect($poItems)->sum('line_total');
-                                        }
+                                        $itemsTotal = $vaAgreed > 0 ? $vaAgreed : collect($poItems)->sum('line_total');
 
                                         $discountAmount = 0.0;
                                         $subtotal = $itemsTotal - $discountAmount;
