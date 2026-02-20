@@ -21,6 +21,7 @@ class CreateValueAnalysis extends CreateRecord
                 $budget = $pr->total_amount ?: $pr->procurement_budget ?: 0;
 
                 $this->form->fill([
+                    'va_number' => \App\Models\ValueAnalysis::generateVANumber(),
                     'purchase_requisition_id' => $pr->id,
                     'work_type' => $pr->work_type,
                     'procurement_method' => $pr->procurement_method,

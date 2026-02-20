@@ -33,8 +33,8 @@ class ValueAnalysisResource extends Resource
                             Forms\Components\TextInput::make('va_number')
                                 ->label('VA Number')
                                 ->default(fn () => \App\Models\ValueAnalysis::generateVANumber())
-                                ->disabled()
-                                ->dehydrated()
+                                ->readOnly()
+                                ->dehydrated(true)
                                 ->required()
                                 ->maxLength(255),
                             Forms\Components\Select::make('purchase_requisition_id')
