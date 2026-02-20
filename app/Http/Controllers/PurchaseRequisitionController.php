@@ -445,7 +445,7 @@ class PurchaseRequisitionController extends Controller
         // Validate basic PR data
         $validated = $request->validate([
             'title' => 'required|string|max:255',
-            'category' => 'required|in:premium_products,advertising_services',
+            'category' => 'required|in:premium_products,advertising_services,space_rental,general_services,construction,assets,technology_software,pharmaceuticals,medical_devices,medical_food,supplements',
             'description' => 'nullable|string',
             'department_id' => 'required|exists:departments,id',
             'required_date' => 'required|date|after_or_equal:today',

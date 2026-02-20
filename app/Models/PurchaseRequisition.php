@@ -150,8 +150,17 @@ class PurchaseRequisition extends Model
     public static function getCategoryOptions(): array
     {
         return [
-            'premium_products' => 'สินค้าประเภทของพรีเมียม',
+            'premium_products' => 'สินค้าพรีเมียม',
             'advertising_services' => 'จ้างโฆษณา',
+            'space_rental' => 'เช่าพื้นที่',
+            'general_services' => 'งานบริการ',
+            'construction' => 'งานก่อสร้าง',
+            'assets' => 'ทรัพย์สิน',
+            'technology_software' => 'เทคโนโลยีและซอฟต์แวร์',
+            'pharmaceuticals' => 'ผลิตภัณฑ์ยา',
+            'medical_devices' => 'เครื่องมือการแพทย์',
+            'medical_food' => 'อาหารทางการแพทย์',
+            'supplements' => 'ผลิตภัณฑ์อาหารเสริม',
         ];
     }
 
