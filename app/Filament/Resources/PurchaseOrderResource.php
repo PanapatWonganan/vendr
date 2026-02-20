@@ -108,21 +108,15 @@ class PurchaseOrderResource extends Resource
 
                                         $va = $pr->valueAnalysis;
 
-                                        // Calculate price ratio from VA
-                                        $prTotal = $pr->items->sum(fn ($item) => ($item->quantity ?? 0) * ($item->estimated_unit_price ?? 0));
-                                        $vaAgreed = ($va && $va->status === 'approved' && $va->agreed_amount > 0) ? (float) $va->agreed_amount : 0;
-                                        $ratio = ($vaAgreed > 0 && $prTotal > 0) ? ($vaAgreed / $prTotal) : 1;
-
-                                        // Copy items from PR with adjusted prices from VA
-                                        $poItems = $pr->items->map(function ($item) use ($ratio) {
-                                            $adjustedPrice = round(($item->estimated_unit_price ?? 0) * $ratio, 2);
+                                        // Copy items from PR (ราคาต่อ item จาก PR — ผู้ใช้แก้เองได้)
+                                        $poItems = $pr->items->map(function ($item) {
                                             return [
                                                 'item_code' => $item->item_code,
                                                 'description' => $item->description,
                                                 'quantity' => $item->quantity,
                                                 'unit_of_measure' => $item->unit_of_measure,
-                                                'unit_price' => $adjustedPrice,
-                                                'line_total' => round(($item->quantity ?? 0) * $adjustedPrice, 2),
+                                                'unit_price' => $item->estimated_unit_price ?? 0,
+                                                'line_total' => ($item->quantity ?? 0) * ($item->estimated_unit_price ?? 0),
                                                 'status' => 'ordered',
                                                 'line_number' => $item->line_number ?? 1,
                                             ];
@@ -130,7 +124,10 @@ class PurchaseOrderResource extends Resource
 
                                         $set('items', $poItems);
 
-                                        $itemsTotal = $vaAgreed > 0 ? $vaAgreed : collect($poItems)->sum('line_total');
+                                        // ยอดรวมใช้จาก VA agreed_amount (ราคาที่ตกลงจริง)
+                                        $itemsTotal = ($va && $va->status === 'approved' && $va->agreed_amount > 0)
+                                            ? (float) $va->agreed_amount
+                                            : collect($poItems)->sum('line_total');
 
                                         $discountAmount = 0.0;
                                         $subtotal = $itemsTotal - $discountAmount;

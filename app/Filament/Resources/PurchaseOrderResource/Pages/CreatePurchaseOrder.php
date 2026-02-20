@@ -134,27 +134,24 @@ class CreatePurchaseOrder extends CreateRecord
                     }
                 }
 
-                // Calculate price ratio from VA
-                $va = $pr->valueAnalysis;
-                $prTotal = $pr->items->sum(fn ($item) => ($item->quantity ?? 0) * ($item->estimated_unit_price ?? 0));
-                $vaAgreed = ($va && $va->status === 'approved' && $va->agreed_amount > 0) ? (float) $va->agreed_amount : 0;
-                $ratio = ($vaAgreed > 0 && $prTotal > 0) ? ($vaAgreed / $prTotal) : 1;
-
-                // Copy items from PR with adjusted prices from VA
-                $formData['items'] = $pr->items->map(function ($item) use ($ratio) {
-                    $adjustedPrice = round(($item->estimated_unit_price ?? 0) * $ratio, 2);
+                // Copy items from PR (ราคาต่อ item จาก PR — ผู้ใช้แก้เองได้ในฟอร์ม PO)
+                $formData['items'] = $pr->items->map(function ($item) {
                     return [
                         'item_code' => $item->item_code,
                         'description' => $item->description,
                         'quantity' => $item->quantity,
                         'unit_of_measure' => $item->unit_of_measure,
-                        'unit_price' => $adjustedPrice,
-                        'total_price' => round(($item->quantity ?? 0) * $adjustedPrice, 2),
+                        'unit_price' => $item->estimated_unit_price ?? 0,
+                        'total_price' => ($item->quantity ?? 0) * ($item->estimated_unit_price ?? 0),
                         'status' => 'ordered',
                     ];
                 })->toArray();
 
-                $subtotal = $vaAgreed > 0 ? $vaAgreed : ($pr->total_amount ?? collect($formData['items'])->sum('total_price'));
+                // ยอดรวมใช้จาก VA agreed_amount (ราคาที่ตกลงจริง)
+                $va = $pr->valueAnalysis;
+                $subtotal = ($va && $va->status === 'approved' && $va->agreed_amount > 0)
+                    ? (float) $va->agreed_amount
+                    : ($pr->total_amount ?? collect($formData['items'])->sum('total_price'));
 
                 $taxAmount = $subtotal * 0.07;
                 $totalAmount = $subtotal + $taxAmount;
