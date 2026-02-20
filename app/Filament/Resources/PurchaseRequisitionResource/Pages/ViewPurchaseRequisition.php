@@ -108,17 +108,51 @@ class ViewPurchaseRequisition extends ViewRecord
                 });
         }
         
-        // Create PO - only if approved
+        // Create VA or PO - only if approved
         if ($this->record->status === 'approved') {
-            $actions[] = Actions\Action::make('createPurchaseOrder')
-                ->label('Create Purchase Order')
-                ->icon('heroicon-o-shopping-cart')
-                ->color('primary')
-                ->url(
-                    fn () => route('filament.admin.resources.purchase-orders.create', [
-                        'purchase_requisition_id' => $this->record->id
-                    ])
-                );
+            $approvedVA = $this->record->valueAnalysis()
+                ->where('status', 'approved')
+                ->first();
+
+            if ($approvedVA) {
+                // VA approved → allow PO creation
+                $actions[] = Actions\Action::make('createPurchaseOrder')
+                    ->label('Create Purchase Order')
+                    ->icon('heroicon-o-shopping-cart')
+                    ->color('primary')
+                    ->url(
+                        fn () => route('filament.admin.resources.purchase-orders.create', [
+                            'purchase_requisition_id' => $this->record->id
+                        ])
+                    );
+            } else {
+                // No approved VA → prompt to create VA first
+                $existingVA = $this->record->valueAnalysis()->first();
+
+                if ($existingVA) {
+                    // VA exists but not approved yet
+                    $actions[] = Actions\Action::make('goToVA')
+                        ->label('ดำเนินการ Vendor Approve (VA)')
+                        ->icon('heroicon-o-chart-bar-square')
+                        ->color('warning')
+                        ->url(
+                            fn () => route('filament.admin.resources.value-analyses.edit', [
+                                'record' => $existingVA->id
+                            ])
+                        );
+                } else {
+                    // No VA at all → create one
+                    $actions[] = Actions\Action::make('createVA')
+                        ->label('สร้าง Vendor Approve (VA)')
+                        ->icon('heroicon-o-chart-bar-square')
+                        ->color('warning')
+                        ->url(
+                            fn () => route('filament.admin.resources.value-analyses.create', [
+                                'purchase_requisition_id' => $this->record->id
+                            ])
+                        );
+                }
+            }
         }
         
         return $actions;
