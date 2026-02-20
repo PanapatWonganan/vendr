@@ -150,7 +150,7 @@ class PurchaseRequisition extends Model
     public static function getCategoryOptions(): array
     {
         return [
-            'premium_products' => 'สินค้าประเภทของพรี่เมี่ยม',
+            'premium_products' => 'สินค้าประเภทของพรีเมียม',
             'advertising_services' => 'จ้างโฆษณา',
         ];
     }
