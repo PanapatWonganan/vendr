@@ -139,7 +139,13 @@ class ValueAnalysisResource extends Resource
                                         ->numeric()
                                         ->required()
                                         ->readOnly()
-                                        ->dehydrated(true),
+                                        ->dehydrated(true)
+                                        ->live()
+                                        ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
+                                            $qty = (float) ($state ?? 0);
+                                            $price = (float) ($get('agreed_unit_price') ?? 0);
+                                            $set('agreed_amount', round($qty * $price, 2));
+                                        }),
                                     Forms\Components\TextInput::make('unit_of_measure')
                                         ->label('หน่วย')
                                         ->required()
@@ -161,7 +167,7 @@ class ValueAnalysisResource extends Resource
                                         ->required()
                                         ->step(0.01)
                                         ->minValue(0)
-                                        ->live(onBlur: true)
+                                        ->live(debounce: 500)
                                         ->afterStateUpdated(function ($state, Forms\Set $set, Forms\Get $get) {
                                             $qty = (float) ($get('quantity') ?? 0);
                                             $price = (float) ($state ?? 0);
