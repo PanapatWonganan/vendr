@@ -5,6 +5,7 @@ namespace App\Listeners;
 use App\Events\PurchaseRequisitionSubmitted;
 use App\Mail\PurchaseRequisitionSubmittedMail;
 use App\Models\User;
+use App\Services\TelegramBotService;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 
@@ -79,6 +80,14 @@ class SendPurchaseRequisitionSubmittedNotification
                         'submitter' => $submittedBy->email
                     ]);
                 }
+            }
+
+            // Send Telegram notifications
+            try {
+                $telegramBot = app(TelegramBotService::class);
+                $telegramBot->notifyPRSubmitted($purchaseRequisition, $submittedBy);
+            } catch (\Exception $e) {
+                Log::error('Telegram PR notification error: ' . $e->getMessage());
             }
 
         } catch (\Exception $e) {

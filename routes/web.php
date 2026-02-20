@@ -53,4 +53,36 @@ Route::middleware(['auth', CompanyMiddleware::class])->group(function () {
     // Note: GR/MR now managed via Filament Admin Panel only
 });
 
+// Telegram Bot Webhook (no auth - verified by token in URL)
+Route::post('/telegram/webhook/{token}', [\App\Http\Controllers\TelegramWebhookController::class, 'handle'])
+    ->name('telegram.webhook')
+    ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+
+// Telegram polling command for local dev (no webhook needed)
+Route::get('/telegram/polling', function () {
+    if (app()->environment('production')) abort(404);
+
+    $bot = app(\App\Services\TelegramBotService::class);
+    $offset = 0;
+    $rounds = 0;
+    $maxRounds = 100;
+
+    while ($rounds < $maxRounds) {
+        $response = \Illuminate\Support\Facades\Http::get(
+            "https://api.telegram.org/bot" . config('telegram.bot_token') . "/getUpdates",
+            ['offset' => $offset, 'timeout' => 30]
+        )->json();
+
+        if (!empty($response['result'])) {
+            foreach ($response['result'] as $update) {
+                $bot->handleUpdate($update);
+                $offset = $update['update_id'] + 1;
+            }
+        }
+        $rounds++;
+    }
+
+    return 'Polling ended after ' . $maxRounds . ' rounds';
+})->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
+
 require __DIR__.'/auth.php';

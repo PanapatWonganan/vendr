@@ -4,6 +4,7 @@ namespace App\Listeners;
 
 use App\Events\PurchaseRequisitionRejected;
 use App\Mail\PurchaseRequisitionRejectedMail;
+use App\Services\TelegramBotService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Mail;
@@ -52,6 +53,15 @@ class SendPurchaseRequisitionRejectedNotification implements ShouldQueue
                         'rejector' => $rejector->name,
                     ]);
                 }
+            }
+
+            // Send Telegram notifications
+            try {
+                $telegramBot = app(TelegramBotService::class);
+                $reason = $purchaseRequisition->rejection_notes ?? $purchaseRequisition->rejection_reason ?? '';
+                $telegramBot->notifyPRRejected($purchaseRequisition, $rejector, $reason);
+            } catch (\Exception $e) {
+                Log::error('Telegram PR rejected notification error: ' . $e->getMessage());
             }
 
         } catch (\Exception $e) {

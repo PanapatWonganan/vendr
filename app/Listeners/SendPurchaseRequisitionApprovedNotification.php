@@ -4,6 +4,7 @@ namespace App\Listeners;
 
 use App\Events\PurchaseRequisitionApproved;
 use App\Mail\PurchaseRequisitionApprovedMail;
+use App\Services\TelegramBotService;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
@@ -84,6 +85,14 @@ class SendPurchaseRequisitionApprovedNotification
                         'approver' => $approver->name,
                     ]);
                 }
+            }
+
+            // Send Telegram notifications
+            try {
+                $telegramBot = app(TelegramBotService::class);
+                $telegramBot->notifyPRApproved($purchaseRequisition, $approver);
+            } catch (\Exception $e) {
+                Log::error('Telegram PR approved notification error: ' . $e->getMessage());
             }
 
         } catch (\Exception $e) {

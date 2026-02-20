@@ -16,6 +16,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\BadgeColumn;
+use App\Models\VendorAssessment;
+use App\Services\VendorRiskAssessmentService;
+use Filament\Notifications\Notification;
 use Carbon\Carbon;
 
 class VendorResource extends Resource
@@ -160,6 +163,26 @@ class VendorResource extends Resource
                             default => 'gray'
                         };
                     }),
+                Tables\Columns\TextColumn::make('risk_level')
+                    ->label('ความเสี่ยง')
+                    ->state(function (Vendor $record) {
+                        $assessment = VendorAssessment::where('vendor_id', $record->id)
+                            ->where('company_id', session('company_id'))
+                            ->where('assessment_status', 'completed')
+                            ->latest()
+                            ->first();
+                        return $assessment ? $assessment->risk_level_label : '-';
+                    })
+                    ->badge()
+                    ->color(function (Vendor $record) {
+                        $assessment = VendorAssessment::where('vendor_id', $record->id)
+                            ->where('company_id', session('company_id'))
+                            ->where('assessment_status', 'completed')
+                            ->latest()
+                            ->first();
+                        return $assessment ? $assessment->risk_level_color : 'gray';
+                    })
+                    ->toggleable(isToggledHiddenByDefault: false),
                 Tables\Columns\TextColumn::make('evaluation_count')
                     ->label('จำนวนการประเมิน')
                     ->state(function (Vendor $record) {
@@ -185,6 +208,48 @@ class VendorResource extends Resource
                 //
             ])
             ->actions([
+                Tables\Actions\Action::make('risk_assess')
+                    ->label('ตรวจสอบ')
+                    ->icon('heroicon-o-shield-check')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('ประเมินความเสี่ยง Vendor')
+                    ->modalDescription(fn (Vendor $record) => "ตรวจสอบ {$record->company_name} (Tax ID: {$record->tax_id}) กับกรมพัฒนาธุรกิจการค้า + AI Analysis?")
+                    ->modalSubmitActionLabel('เริ่มประเมิน')
+                    ->action(function (Vendor $record) {
+                        try {
+                            $service = app(VendorRiskAssessmentService::class);
+                            $assessment = $service->assess($record);
+
+                            if ($assessment->isCompleted()) {
+                                Notification::make()
+                                    ->title("ผลการประเมิน: {$assessment->risk_level_label}")
+                                    ->body("คะแนนความเสี่ยง: {$assessment->overall_risk_score}/100")
+                                    ->color($assessment->risk_level_color)
+                                    ->success()
+                                    ->persistent()
+                                    ->actions([
+                                        \Filament\Notifications\Actions\Action::make('view')
+                                            ->label('ดูรายละเอียด')
+                                            ->url('/admin/vendor-risk-assessment')
+                                            ->button(),
+                                    ])
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->title('การประเมินล้มเหลว')
+                                    ->body($assessment->error_message ?? 'เกิดข้อผิดพลาด')
+                                    ->danger()
+                                    ->send();
+                            }
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->title('เกิดข้อผิดพลาด')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    }),
                 Tables\Actions\EditAction::make(),
             ])
             ->bulkActions([

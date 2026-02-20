@@ -35,4 +35,14 @@ return [
         ],
     ],
 
+    'dbd' => [
+        'base_url' => env('DBD_API_BASE_URL', 'https://openapi.dbd.go.th/api/v1'),
+        'token' => env('DBD_API_TOKEN'),
+    ],
+
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+    ],
+
 ];

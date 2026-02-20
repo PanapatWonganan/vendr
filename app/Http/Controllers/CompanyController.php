@@ -34,15 +34,15 @@ class CompanyController extends Controller
             return back()->with('error', 'บริษัทที่เลือกไม่สามารถใช้งานได้');
         }
 
-        // Set session
+        // Set session (ใช้ single database - mysql connection)
         session([
             'company_id' => $company->id,
-            'company_connection' => $company->getDatabaseConnection(),
+            'company_connection' => 'mysql',
             'company_name' => $company->display_name,
         ]);
 
         // Set database connection
-        BaseModel::setCompanyConnection($company->getDatabaseConnection());
+        BaseModel::setCompanyConnection('mysql');
 
         return redirect('/admin')->with('success', 'เลือกบริษัท ' . $company->display_name . ' เรียบร้อยแล้ว');
     }
@@ -62,15 +62,15 @@ class CompanyController extends Controller
             return response()->json(['error' => 'บริษัทที่เลือกไม่สามารถใช้งานได้'], 400);
         }
 
-        // Set session
+        // Set session (ใช้ single database - mysql connection)
         session([
             'company_id' => $company->id,
-            'company_connection' => $company->getDatabaseConnection(),
+            'company_connection' => 'mysql',
             'company_name' => $company->display_name,
         ]);
 
         // Set database connection
-        BaseModel::setCompanyConnection($company->getDatabaseConnection());
+        BaseModel::setCompanyConnection('mysql');
 
         return response()->json([
             'success' => true,

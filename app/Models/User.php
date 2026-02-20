@@ -36,6 +36,11 @@ class User extends Authenticatable
         'email_pr_approved',
         'email_pr_rejected',
         'email_pr_created',
+        'telegram_chat_id',
+        'telegram_username',
+        'telegram_otp',
+        'telegram_otp_expires_at',
+        'telegram_linked_at',
     ];
 
     /**
@@ -65,6 +70,8 @@ class User extends Authenticatable
             'email_pr_approved' => 'boolean',
             'email_pr_rejected' => 'boolean',
             'email_pr_created' => 'boolean',
+            'telegram_otp_expires_at' => 'datetime',
+            'telegram_linked_at' => 'datetime',
         ];
     }
 

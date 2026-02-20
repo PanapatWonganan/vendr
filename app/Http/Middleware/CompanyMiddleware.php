@@ -36,8 +36,8 @@ class CompanyMiddleware
             return redirect()->route('company.select');
         }
 
-        // Set database connection สำหรับ request นี้
-        BaseModel::setCompanyConnection($company->getDatabaseConnection());
+        // Set database connection สำหรับ request นี้ (ใช้ single database)
+        BaseModel::setCompanyConnection('mysql');
 
         // เพิ่มข้อมูล company ใน request เพื่อใช้ใน view
         $request->merge([

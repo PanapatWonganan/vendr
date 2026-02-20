@@ -27,6 +27,8 @@ class Department extends Model
         'manager_id',
         'parent_id',
         'is_active',
+        'monthly_budget',
+        'budget_alert_threshold',
     ];
 
     /**
@@ -36,6 +38,8 @@ class Department extends Model
      */
     protected $casts = [
         'is_active' => 'boolean',
+        'monthly_budget' => 'decimal:2',
+        'budget_alert_threshold' => 'integer',
     ];
 
     /**

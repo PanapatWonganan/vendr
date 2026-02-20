@@ -54,6 +54,18 @@ class Vendor extends Model
         return $this->hasMany(PurchaseOrder::class, 'vendor_id');
     }
     
+    public function assessments()
+    {
+        return $this->hasMany(VendorAssessment::class);
+    }
+
+    public function latestAssessment()
+    {
+        return $this->hasOne(VendorAssessment::class)
+            ->where('assessment_status', 'completed')
+            ->latest();
+    }
+
     public function goodsReceipts()
     {
         return $this->hasManyThrough(

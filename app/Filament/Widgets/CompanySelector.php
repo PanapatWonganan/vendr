@@ -24,7 +24,7 @@ class CompanySelector extends Widget
                 session([
                     'company_id' => $defaultCompany->id,
                     'company_name' => $defaultCompany->name,
-                    'company_connection' => $defaultCompany->database_connection,
+                    'company_connection' => 'mysql', // ใช้ default connection (single database)
                     'company_display_name' => $defaultCompany->display_name,
                 ]);
             }
@@ -54,7 +54,7 @@ class CompanySelector extends Widget
         session([
             'company_id' => $company->id,
             'company_name' => $company->name,
-            'company_connection' => $company->database_connection,
+            'company_connection' => 'mysql', // ใช้ default connection (single database)
             'company_display_name' => $company->display_name,
         ]);
 
