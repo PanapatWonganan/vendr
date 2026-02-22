@@ -35,7 +35,10 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->brandName('Innobic Procurement System')
-            ->brandLogo(asset('assets/img/innobic.png'))
+            ->brandLogo(function () {
+                $company = \App\Models\Company::find(session('company_id'));
+                return $company ? asset($company->logo ?? 'assets/img/innobic.png') : asset('assets/img/innobic.png');
+            })
             ->favicon(asset('assets/img/innobic.png'))
             ->colors([
                 'primary' => Color::Blue,
