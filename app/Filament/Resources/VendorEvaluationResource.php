@@ -39,11 +39,11 @@ class VendorEvaluationResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
     
-    protected static ?string $navigationLabel = 'ประเมินผู้ขาย';
+    protected static ?string $navigationLabel = 'การประเมินผลงาน';
     
-    protected static ?string $modelLabel = 'การประเมินผู้ขาย';
+    protected static ?string $modelLabel = 'การประเมินผลงาน';
     
-    protected static ?string $pluralModelLabel = 'การประเมินผู้ขาย';
+    protected static ?string $pluralModelLabel = 'การประเมินผลงาน';
     
     protected static ?string $navigationGroup = 'Master Data';
     

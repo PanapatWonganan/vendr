@@ -6,7 +6,7 @@
         <!-- Header -->
         <div class="mb-8">
             <h1 class="text-3xl font-bold text-gray-800 mb-2">Dashboard</h1>
-            <p class="text-gray-600">ภาพรวมระบบจัดซื้อจัดจ้างและการประเมินผู้ขาย</p>
+            <p class="text-gray-600">ภาพรวมระบบจัดซื้อจัดจ้างและการประเมินผลงาน</p>
         </div>
 
         <!-- Statistics Cards -->
