@@ -26,9 +26,9 @@ class SendPaymentMilestoneNotification
     public function handle(PaymentMilestonePaid $event): void
     {
         try {
-            Log::info("💰 PAYMENT EMAIL HANDLER STARTED", [
-                'milestone_id' => $event->paymentMilestoneId, 
-                'payer_id' => $event->payerUserId
+            Log::info('Payment Notification: Handler started', [
+                'milestone_id' => $event->paymentMilestoneId,
+                'payer_id' => $event->payerUserId,
             ]);
             
             // Get payment milestone with relationships
@@ -65,12 +65,10 @@ class SendPaymentMilestoneNotification
                 $committeeSource = 'PO';
             }
             
-            Log::info("💳 Payment Details", [
+            Log::info('Payment Notification: Details resolved', [
                 'milestone_number' => $paymentMilestone->milestone_number,
                 'po_number' => $paymentMilestone->purchaseOrder?->po_number,
                 'committee_email' => $inspectionCommittee?->email,
-                'committee_source' => $committeeSource,
-                'payer_email' => $payer->email
             ]);
 
             // Send email to inspection committee
@@ -79,7 +77,7 @@ class SendPaymentMilestoneNotification
                     Mail::to($inspectionCommittee->email)
                         ->send(new PaymentMilestoneNotificationMail($paymentMilestone, $payer));
                         
-                    Log::info("💰 Payment notification sent to inspection committee: {$inspectionCommittee->email}");
+                    Log::info("Payment Notification: Email sent to committee", ['recipient' => $inspectionCommittee->email]);
                 } catch (\Exception $e) {
                     Log::error("Failed to send payment notification to inspection committee: " . $e->getMessage());
                 }
@@ -91,7 +89,7 @@ class SendPaymentMilestoneNotification
                     Mail::to($payer->email)
                         ->send(new PaymentMilestoneNotificationMail($paymentMilestone, $payer, true));
                         
-                    Log::info("💰 Payment notification sent to payer: {$payer->email}");
+                    Log::info("Payment Notification: Email sent to payer", ['recipient' => $payer->email]);
                 } catch (\Exception $e) {
                     Log::error("Failed to send payment notification to payer: " . $e->getMessage());
                 }

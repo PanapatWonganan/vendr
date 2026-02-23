@@ -11,7 +11,6 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Widgets;
-use App\Filament\Widgets\StatsOverview;
 use App\Filament\Widgets\CompanySelector;
 use App\Filament\Middleware\CompanyMiddleware;
 use App\Filament\Pages\CompanySelect;

@@ -26,11 +26,8 @@ class SendPurchaseRequisitionApprovedNotification
             
             // Check if this event was already processed recently
             if (Cache::has($eventKey)) {
-                Log::warning('🚫 DUPLICATE PR EMAIL PREVENTED', [
-                    'event_key' => $eventKey,
+                Log::warning('PR Approval: Duplicate event prevented', [
                     'pr_id' => $purchaseRequisition->id,
-                    'pr_number' => $purchaseRequisition->pr_number,
-                    'cached_at' => Cache::get($eventKey)
                 ]);
                 return;
             }
@@ -43,10 +40,9 @@ class SendPurchaseRequisitionApprovedNotification
                 Mail::to($purchaseRequisition->requester->email)
                     ->send(new PurchaseRequisitionApprovedMail($purchaseRequisition, $approver, $purchaseRequisition->requester));
 
-                Log::info('📧 PR APPROVED EMAIL SENT - REQUESTER', [
+                Log::info('PR Approval: Email sent to requester', [
                     'pr_number' => $purchaseRequisition->pr_number,
                     'recipient' => $purchaseRequisition->requester->email,
-                    'approver' => $approver->name,
                 ]);
             }
 
@@ -61,10 +57,9 @@ class SendPurchaseRequisitionApprovedNotification
                     Mail::to($departmentHead->email)
                         ->send(new PurchaseRequisitionApprovedMail($purchaseRequisition, $approver, $departmentHead));
 
-                    Log::info('📧 PR APPROVED EMAIL SENT - DEPARTMENT HEAD', [
+                    Log::info('PR Approval: Email sent to department head', [
                         'pr_number' => $purchaseRequisition->pr_number,
                         'recipient' => $departmentHead->email,
-                        'approver' => $approver->name,
                     ]);
                 }
             }
@@ -79,10 +74,9 @@ class SendPurchaseRequisitionApprovedNotification
                     Mail::to($manager->email)
                         ->send(new PurchaseRequisitionApprovedMail($purchaseRequisition, $approver, $manager));
 
-                    Log::info('📧 PR APPROVED EMAIL SENT - PROCUREMENT MANAGER', [
+                    Log::info('PR Approval: Email sent to procurement manager', [
                         'pr_number' => $purchaseRequisition->pr_number,
                         'recipient' => $manager->email,
-                        'approver' => $approver->name,
                     ]);
                 }
             }
