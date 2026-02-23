@@ -17,8 +17,7 @@ use App\Filament\Middleware\CompanyMiddleware;
 use App\Filament\Pages\CompanySelect;
 use Filament\Navigation\NavigationGroup;
 use Filament\Navigation\NavigationItem;
-use Filament\Support\Enums\MaxWidth;
-use Illuminate\Support\Facades\Blade;
+use Illuminate\Contracts\View\View;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -102,7 +101,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->renderHook(
                 'panels::body.end',
-                fn () => Blade::render('@livewire(\'chat-widget\')'),
+                fn (): View => view('filament.chat-hook'),
             )
             ->navigationItems([
                 NavigationItem::make('คำขอของฉัน')
