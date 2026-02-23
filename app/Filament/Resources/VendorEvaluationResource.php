@@ -46,7 +46,12 @@ class VendorEvaluationResource extends Resource
     protected static ?string $pluralModelLabel = 'การประเมินผลงาน';
     
     protected static ?string $navigationGroup = 'Master Data';
-    
+
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'auditor', 'procurement_committee', 'inspection_committee']) ?? false;
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $query = parent::getEloquentQuery();

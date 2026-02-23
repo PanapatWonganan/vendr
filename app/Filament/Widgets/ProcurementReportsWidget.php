@@ -12,6 +12,11 @@ class ProcurementReportsWidget extends Widget
     protected static string $view = 'filament.widgets.procurement-reports-widget';
     protected static ?int $sort = 4;
 
+    public static function canView(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'auditor']) ?? false;
+    }
+
     protected function getViewData(): array
     {
         $companyId = session('company_id');

@@ -102,7 +102,8 @@ class AdminPanelProvider extends PanelProvider
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('my-requests'))
                     ->icon('heroicon-o-user')
                     ->group('Procurement Management')
-                    ->sort(1),
+                    ->sort(1)
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'requester', 'department_head', 'procurement_officer', 'procurement_manager', 'procurement_committee', 'auditor'])),
                 NavigationItem::make('รออนุมัติ')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('pending-approvals'))
                     ->icon('heroicon-o-clock')
@@ -110,17 +111,20 @@ class AdminPanelProvider extends PanelProvider
                     ->sort(2)
                     ->badge(function () {
                         return \App\Models\PurchaseRequisition::where('status', 'pending_approval')->count();
-                    }),
+                    })
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'department_head', 'procurement_officer', 'procurement_manager', 'auditor'])),
                 NavigationItem::make('จัดหาฯ ไม่เกิน 1 หมื่นบาท')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('create-direct-small'))
                     ->icon('heroicon-o-shopping-cart')
                     ->group('Procurement Management')
-                    ->sort(4),
+                    ->sort(4)
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'requester', 'department_head', 'procurement_officer', 'procurement_manager'])),
                 NavigationItem::make('จัดหาฯ ไม่เกิน 1 แสนบาท')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('create-direct-medium'))
                     ->icon('heroicon-o-shopping-bag')
                     ->group('Procurement Management')
-                    ->sort(5),
+                    ->sort(5)
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'requester', 'department_head', 'procurement_officer', 'procurement_manager'])),
             ]);
     }
 }

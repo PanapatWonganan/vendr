@@ -13,10 +13,15 @@ use Illuminate\Support\Carbon;
 class UpcomingDeliveries extends BaseWidget
 {
     protected static ?int $sort = 3;
-    
+
     protected int | string | array $columnSpan = 'full';
-    
+
     protected static ?string $heading = '📅 กำหนดการที่ใกล้เข้ามา';
+
+    public static function canView(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'warehouse_staff', 'auditor']) ?? false;
+    }
 
     public function table(Table $table): Table
     {

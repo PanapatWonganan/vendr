@@ -11,9 +11,14 @@ use Illuminate\Support\Carbon;
 class DeliveryCalendarWidget extends BaseWidget
 {
     protected static ?int $sort = 2;
-    
+
     protected int | string | array $columnSpan = 'full';
-    
+
+    public static function canView(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'warehouse_staff', 'auditor']) ?? false;
+    }
+
     protected function getStats(): array
     {
         $currentMonth = now()->startOfMonth();

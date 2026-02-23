@@ -15,6 +15,11 @@ class DashboardStatsOverview extends BaseWidget
 {
     protected static ?int $sort = 1;
 
+    public static function canView(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'department_head', 'auditor']) ?? false;
+    }
+
     protected function getStats(): array
     {
         $user = auth()->user();

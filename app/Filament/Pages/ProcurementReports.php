@@ -23,6 +23,11 @@ class ProcurementReports extends Page
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
     protected static ?string $navigationLabel = 'Reports (รายงาน)';
     protected static string $view = 'filament.pages.procurement-reports';
+
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_manager', 'auditor']) ?? false;
+    }
     protected static ?string $navigationGroup = 'Reports & Analytics';
     protected static ?int $navigationSort = 1;
 

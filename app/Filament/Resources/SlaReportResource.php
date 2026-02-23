@@ -18,6 +18,11 @@ class SlaReportResource extends Resource
     protected static ?string $navigationGroup = 'Reports & Analytics';
     protected static ?int $navigationSort = 10;
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'auditor']) ?? false;
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $companyId = session('company_id');

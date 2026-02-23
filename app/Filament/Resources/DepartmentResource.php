@@ -24,6 +24,11 @@ class DepartmentResource extends Resource
     protected static ?string $navigationGroup = 'Master Data (ข้อมูลหลัก)';
     protected static ?int $navigationSort = 2;
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin']) ?? false;
+    }
+
     public static function form(Form $form): Form
     {
         return $form

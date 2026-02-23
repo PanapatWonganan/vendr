@@ -12,6 +12,11 @@ class PendingApprovalsChart extends ChartWidget
     protected static ?string $heading = 'Pending Approvals Overview';
     protected static ?int $sort = 3;
 
+    public static function canView(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'department_head', 'procurement_officer', 'procurement_manager', 'auditor']) ?? false;
+    }
+
     protected function getData(): array
     {
         $user = Auth::user();

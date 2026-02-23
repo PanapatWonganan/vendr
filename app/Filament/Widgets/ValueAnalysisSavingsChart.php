@@ -13,6 +13,11 @@ class ValueAnalysisSavingsChart extends ApexChartWidget
     protected static ?int $sort = 4;
     protected static ?int $contentHeight = 300;
 
+    public static function canView(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'auditor']) ?? false;
+    }
+
     protected function getOptions(): array
     {
         $companyId = session('company_id') ?: 2;

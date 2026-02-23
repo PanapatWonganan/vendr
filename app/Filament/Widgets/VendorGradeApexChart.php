@@ -7,6 +7,11 @@ use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
 
 class VendorGradeApexChart extends ApexChartWidget
 {
+    public static function canView(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'auditor']) ?? false;
+    }
+
     /**
      * Chart Id
      *

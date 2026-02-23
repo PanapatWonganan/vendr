@@ -32,10 +32,9 @@ class UserResource extends Resource
         return parent::getEloquentQuery()->with(['department', 'roles']);
     }
 
-    public static function canViewAny(): bool
+    public static function canAccess(): bool
     {
-        // ให้ admin เห็นได้เสมอ
-        return true;
+        return auth()->user()?->hasAnyRole(['admin']) ?? false;
     }
 
     public static function form(Form $form): Form

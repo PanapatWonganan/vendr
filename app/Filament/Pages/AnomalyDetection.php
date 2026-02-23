@@ -19,6 +19,11 @@ class AnomalyDetection extends Page
     protected static ?string $slug = 'anomaly-detection';
     protected static string $view = 'filament.pages.anomaly-detection';
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'auditor']) ?? false;
+    }
+
     public array $summary = [];
     public array $anomalies = [];
     public string $filterType = 'all';

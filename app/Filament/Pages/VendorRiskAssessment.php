@@ -22,6 +22,11 @@ class VendorRiskAssessment extends Page implements HasForms
 {
     use InteractsWithForms;
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_manager', 'auditor']) ?? false;
+    }
+
     protected static ?string $navigationIcon = 'heroicon-o-shield-check';
     protected static ?string $navigationLabel = 'Vendor Risk Assessment';
     protected static ?string $navigationGroup = 'Reports & Analytics';

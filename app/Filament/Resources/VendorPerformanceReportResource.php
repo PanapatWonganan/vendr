@@ -28,6 +28,11 @@ class VendorPerformanceReportResource extends Resource
     protected static ?string $navigationGroup = 'Master Data (ข้อมูลหลัก)';
     protected static ?int $navigationSort = 4;
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'auditor']) ?? false;
+    }
+
     public static function form(Form $form): Form
     {
         return $form->schema([]);

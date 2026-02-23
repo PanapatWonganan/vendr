@@ -25,7 +25,12 @@ class PurchaseOrderResource extends Resource
     protected static ?string $pluralModelLabel = 'ใบสั่งซื้อ';
     protected static ?string $navigationGroup = 'Procurement Management';
     protected static ?int $navigationSort = 7;
-    
+
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'department_head', 'auditor']) ?? false;
+    }
+
     public static function getNavigationBadge(): ?string
     {
         $user = auth()->user();

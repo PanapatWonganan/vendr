@@ -29,6 +29,11 @@ class GoodsReceiptResource extends Resource
     
     protected static ?int $navigationSort = 8;
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'warehouse_staff', 'inspection_committee', 'auditor']) ?? false;
+    }
+
     public static function form(Form $form): Form
     {
         return $form

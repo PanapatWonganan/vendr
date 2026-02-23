@@ -23,6 +23,11 @@ class ValueAnalysisResource extends Resource
     protected static ?string $navigationGroup = 'Procurement Management';
     protected static ?int $navigationSort = 6;
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'department_head', 'auditor']) ?? false;
+    }
+
     public static function form(Form $form): Form
     {
         return $form

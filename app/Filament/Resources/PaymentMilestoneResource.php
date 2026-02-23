@@ -27,6 +27,11 @@ class PaymentMilestoneResource extends Resource
     
     protected static ?string $navigationGroup = 'Milestone Management';
 
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'finance_officer', 'inspection_committee', 'auditor']) ?? false;
+    }
+
     public static function form(Form $form): Form
     {
         return $form

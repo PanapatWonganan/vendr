@@ -12,7 +12,12 @@ use Illuminate\Support\Facades\DB;
 class ProcurementStatsOverview extends BaseWidget
 {
     protected static ?int $sort = 2;
-    
+
+    public static function canView(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'department_head', 'auditor']) ?? false;
+    }
+
     protected function getStats(): array
     {
         $companyId = session('company_id');

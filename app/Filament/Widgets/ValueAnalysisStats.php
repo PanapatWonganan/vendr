@@ -10,6 +10,11 @@ class ValueAnalysisStats extends BaseWidget
 {
     protected static ?int $sort = 4;
 
+    public static function canView(): bool
+    {
+        return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'auditor']) ?? false;
+    }
+
     protected function getStats(): array
     {
         $companyId = session('company_id') ?: 1;
