@@ -17,7 +17,6 @@ use App\Filament\Middleware\CompanyMiddleware;
 use App\Filament\Pages\CompanySelect;
 use Filament\Navigation\NavigationGroup;
 use Filament\Navigation\NavigationItem;
-use Saade\FilamentFullCalendar\FilamentFullCalendarPlugin;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -65,7 +64,7 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Widgets\VendorGradeApexChart::class,
                 \App\Filament\Widgets\ValueAnalysisStats::class,
                 \App\Filament\Widgets\ValueAnalysisSavingsChart::class,
-                \App\Filament\Widgets\CalendarWidget::class,
+                \App\Filament\Widgets\CalendarLinkWidget::class,
                 \App\Filament\Widgets\ProcurementStatsOverview::class,
                 \App\Filament\Widgets\PendingApprovalsChart::class,
                 \App\Filament\Widgets\ProcurementReportsWidget::class,
@@ -97,7 +96,6 @@ class AdminPanelProvider extends PanelProvider
                 'User Management (จัดการผู้ใช้)',
             ])
             ->plugins([
-                FilamentFullCalendarPlugin::make(),
                 \Leandrocfe\FilamentApexCharts\FilamentApexChartsPlugin::make(),
             ])
             ->navigationItems([
