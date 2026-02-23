@@ -17,8 +17,9 @@ use App\Filament\Middleware\CompanyMiddleware;
 use App\Filament\Pages\CompanySelect;
 use Filament\Navigation\NavigationGroup;
 use Filament\Navigation\NavigationItem;
-use Illuminate\Support\Facades\Blade;
+use Filament\Support\Facades\FilamentView;
 use Filament\View\PanelsRenderHook;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -28,6 +29,16 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
 {
+    public function boot(): void
+    {
+        FilamentView::registerRenderHook(
+            PanelsRenderHook::BODY_END,
+            fn (): string => auth()->check() && session('company_id')
+                ? Blade::render('@livewire(\'chat-widget\')')
+                : '',
+        );
+    }
+
     public function panel(Panel $panel): Panel
     {
         return $panel
@@ -100,12 +111,6 @@ class AdminPanelProvider extends PanelProvider
             ->plugins([
                 \Leandrocfe\FilamentApexCharts\FilamentApexChartsPlugin::make(),
             ])
-            ->renderHook(
-                PanelsRenderHook::BODY_END,
-                fn (): string => auth()->check() && session('company_id')
-                    ? Blade::render('@livewire(\'chat-widget\')')
-                    : '',
-            )
             ->navigationItems([
                 NavigationItem::make('คำขอของฉัน')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('my-requests'))
