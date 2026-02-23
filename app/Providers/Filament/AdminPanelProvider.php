@@ -17,7 +17,8 @@ use App\Filament\Middleware\CompanyMiddleware;
 use App\Filament\Pages\CompanySelect;
 use Filament\Navigation\NavigationGroup;
 use Filament\Navigation\NavigationItem;
-use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Blade;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -100,8 +101,10 @@ class AdminPanelProvider extends PanelProvider
                 \Leandrocfe\FilamentApexCharts\FilamentApexChartsPlugin::make(),
             ])
             ->renderHook(
-                'panels::body.end',
-                fn (): View => view('filament.chat-hook'),
+                PanelsRenderHook::BODY_END,
+                fn (): string => auth()->check() && session('company_id')
+                    ? Blade::render('@livewire(\'chat-widget\')')
+                    : '',
             )
             ->navigationItems([
                 NavigationItem::make('คำขอของฉัน')
