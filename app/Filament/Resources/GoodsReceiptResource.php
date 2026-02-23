@@ -68,7 +68,7 @@ class GoodsReceiptResource extends Resource
                             ->required(),
 
                         Forms\Components\Select::make('payment_milestone_id')
-                            ->label('งวดชำระเงิน')
+                            ->label('งวดการส่งมอบ')
                             ->options(function (Forms\Get $get, ?GoodsReceipt $record) {
                                 $poId = $get('purchase_order_id');
                                 if (!$poId) {
@@ -142,15 +142,15 @@ class GoodsReceiptResource extends Resource
                             ->label('งวดที่')
                             ->disabled()
                             ->dehydrated(true)
-                            ->placeholder('เลือกงวดชำระเงินด้านบน')
-                            ->helperText('ดึงจากงวดชำระเงินอัตโนมัติ'),
+                            ->placeholder('เลือกงวดการส่งมอบด้านบน')
+                            ->helperText('ดึงจากงวดการส่งมอบอัตโนมัติ'),
                         Forms\Components\TextInput::make('milestone_percentage')
                             ->label('เปอร์เซ็นต์')
                             ->disabled()
                             ->dehydrated(true)
                             ->suffix('%')
                             ->placeholder('-')
-                            ->helperText('ดึงจากงวดชำระเงินอัตโนมัติ'),
+                            ->helperText('ดึงจากงวดการส่งมอบอัตโนมัติ'),
                         Forms\Components\Select::make('inspection_status')
                             ->label('สถานะตรวจสอบ')
                             ->required()
