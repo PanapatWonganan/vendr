@@ -136,6 +136,9 @@
         <div class="header">
             <div class="icon">✅</div>
             <h1>ใบ PO ได้รับการอนุมัติแล้ว</h1>
+            @if($company)
+                <p style="margin: 8px 0 0; font-size: 16px; opacity: 0.9;">{{ $company->display_name ?? $company->name }}</p>
+            @endif
         </div>
         
         <div class="content">
@@ -148,7 +151,27 @@
                 <p>เรามีความยินดีที่จะแจ้งให้ทราบว่า ใบ Purchase Order ของคุณได้รับการอนุมัติเรียบร้อยแล้ว</p>
             @else
                 {{-- Message for vendor --}}
-                <p>เรามีความยินดีที่จะแจ้งให้ทราบว่า บริษัทฯ ได้อนุมัติใบ Purchase Order แล้ว และขอให้ท่านดำเนินการตามรายละเอียดดังต่อไปนี้</p>
+                <p>เรามีความยินดีที่จะแจ้งให้ทราบว่า <strong>{{ $company?->display_name ?? $company?->name ?? 'บริษัทฯ' }}</strong> ได้อนุมัติใบ Purchase Order แล้ว และขอให้ท่านดำเนินการตามรายละเอียดดังต่อไปนี้</p>
+            @endif
+
+            @if($company)
+            <div style="background-color: #e3f2fd; border: 1px solid #90caf9; border-radius: 5px; padding: 15px; margin: 20px 0;">
+                <strong>🏢 ข้อมูลบริษัทผู้สั่งซื้อ</strong><br>
+                <span style="font-size: 16px; font-weight: 600; color: #1565c0;">{{ $company->display_name ?? $company->name }}</span><br>
+                @if($company->address)
+                    <span style="color: #555;">{{ $company->address }}</span><br>
+                @endif
+                @if($company->tax_id)
+                    <span style="color: #555;">เลขประจำตัวผู้เสียภาษี: {{ $company->tax_id }}</span><br>
+                @endif
+                @if($company->phone)
+                    <span style="color: #555;">โทร: {{ $company->phone }}</span>
+                @endif
+                @if($company->email)
+                    @if($company->phone) | @endif
+                    <span style="color: #555;">อีเมล: {{ $company->email }}</span>
+                @endif
+            </div>
             @endif
             
             <div class="po-details">
@@ -256,11 +279,11 @@
         </div>
         
         <div class="footer">
-            <div class="company-logo">🏢 INNOBIC</div>
+            <div class="company-logo">🏢 {{ $company?->display_name ?? $company?->name ?? 'INNOBIC' }}</div>
             <p>ระบบจัดการ Purchase Order<br>
             อีเมลนี้ถูกส่งโดยอัตโนมัติ กรุณาอย่าตอบกลับ</p>
             <p style="font-size: 12px; color: #adb5bd;">
-                หากคุณมีคำถามใดๆ กรุณาติดต่อทีมจัดซื้อ หรือ IT Support
+                หากคุณมีคำถามใดๆ กรุณาติดต่อทีมจัดซื้อ{{ $company?->phone ? ' โทร ' . $company->phone : '' }} หรือ IT Support
             </p>
         </div>
     </div>

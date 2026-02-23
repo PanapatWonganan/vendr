@@ -18,6 +18,7 @@ class PurchaseOrderApprovedMail extends Mailable
     public $purchaseOrder;
     public $approver;
     public $recipient;
+    public $company;
     private $pdfContent;
     private $pdfFilename;
     private $deliveryNotePdfContent;
@@ -27,13 +28,14 @@ class PurchaseOrderApprovedMail extends Mailable
      * Create a new message instance.
      */
     public function __construct(
-        PurchaseOrder $purchaseOrder, 
-        User $approver, 
-        User $recipient = null, 
-        $pdfContent = null, 
+        PurchaseOrder $purchaseOrder,
+        User $approver,
+        ?User $recipient = null,
+        $pdfContent = null,
         $pdfFilename = null,
         $deliveryNotePdfContent = null,
-        $deliveryNotePdfFilename = null
+        $deliveryNotePdfFilename = null,
+        $company = null
     ) {
         $this->purchaseOrder = $purchaseOrder;
         $this->approver = $approver;
@@ -42,6 +44,7 @@ class PurchaseOrderApprovedMail extends Mailable
         $this->pdfFilename = $pdfFilename;
         $this->deliveryNotePdfContent = $deliveryNotePdfContent;
         $this->deliveryNotePdfFilename = $deliveryNotePdfFilename;
+        $this->company = $company;
     }
 
     /**
@@ -49,8 +52,10 @@ class PurchaseOrderApprovedMail extends Mailable
      */
     public function envelope(): Envelope
     {
+        $companyName = $this->company?->display_name ?? $this->company?->name ?? 'Innobic';
+
         return new Envelope(
-            subject: '[Innobic] ใบ PO ' . $this->purchaseOrder->po_number . ' ได้รับการอนุมัติแล้ว',
+            subject: "[{$companyName}] ใบ PO " . $this->purchaseOrder->po_number . ' ได้รับการอนุมัติแล้ว',
         );
     }
 
@@ -65,6 +70,7 @@ class PurchaseOrderApprovedMail extends Mailable
                 'purchaseOrder' => $this->purchaseOrder,
                 'approver' => $this->approver,
                 'recipient' => $this->recipient,
+                'company' => $this->company,
             ],
         );
     }

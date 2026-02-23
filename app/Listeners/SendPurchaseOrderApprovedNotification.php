@@ -204,6 +204,9 @@ class SendPurchaseOrderApprovedNotification
                 'creator_email' => $purchaseOrder->creator?->email,
             ]);
 
+            // Load company information
+            $company = \App\Models\Company::find($event->companyId);
+
             // Generate PDFs for the Purchase Order
             $pdfContent = null;
             $pdfFilename = null;
@@ -283,13 +286,14 @@ class SendPurchaseOrderApprovedNotification
                     // Send email to the inspection committee with PDF attachments
                     Mail::to($inspectionCommittee->email)
                         ->send(new PurchaseOrderApprovedMail(
-                            $purchaseOrder, 
-                            $approver, 
-                            $inspectionCommittee, 
-                            $pdfContent, 
+                            $purchaseOrder,
+                            $approver,
+                            $inspectionCommittee,
+                            $pdfContent,
                             $pdfFilename,
                             $deliveryNotePdfContent,
-                            $deliveryNotePdfFilename
+                            $deliveryNotePdfFilename,
+                            $company
                         ));
 
                     Log::info('📧 PO APPROVED EMAIL SENT - INSPECTION COMMITTEE', [
@@ -341,13 +345,14 @@ class SendPurchaseOrderApprovedNotification
                 try {
                     Mail::to($vendorEmail)
                         ->send(new PurchaseOrderApprovedMail(
-                            $purchaseOrder, 
-                            $approver, 
-                            null, 
-                            $pdfContent, 
+                            $purchaseOrder,
+                            $approver,
+                            null,
+                            $pdfContent,
                             $pdfFilename,
                             $deliveryNotePdfContent,
-                            $deliveryNotePdfFilename
+                            $deliveryNotePdfFilename,
+                            $company
                         ));
 
                     Log::info('Purchase Order approved email sent to vendor with PDFs', [
@@ -391,13 +396,14 @@ class SendPurchaseOrderApprovedNotification
                 try {
                     Mail::to($inspectionCommittee->email)
                         ->send(new PurchaseOrderApprovedMail(
-                            $purchaseOrder, 
-                            $approver, 
-                            $inspectionCommittee, 
-                            $pdfContent, 
+                            $purchaseOrder,
+                            $approver,
+                            $inspectionCommittee,
+                            $pdfContent,
                             $pdfFilename,
                             $deliveryNotePdfContent,
-                            $deliveryNotePdfFilename
+                            $deliveryNotePdfFilename,
+                            $company
                         ));
 
                     Log::info('Purchase Order approved email sent to inspection committee with PDFs', [
