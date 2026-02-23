@@ -2,14 +2,31 @@
     x-data="{ open: @entangle('isOpen') }"
     style="position:fixed;bottom:24px;right:24px;z-index:99999;font-family:'Sarabun',sans-serif;"
 >
+    <style>
+        @keyframes chatBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-6px); }
+        }
+        #chat-messages::-webkit-scrollbar { width: 4px; }
+        #chat-messages::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        #chat-messages::-webkit-scrollbar-track { background: transparent; }
+        .chat-fab { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+        .chat-fab:hover { transform: scale(1.08); box-shadow: 0 12px 28px -4px rgba(37,99,235,0.5) !important; }
+        .chat-fab:active { transform: scale(0.93); box-shadow: 0 4px 12px -2px rgba(37,99,235,0.4) !important; }
+        .chat-send-btn { transition: background 0.15s ease, transform 0.1s ease; }
+        .chat-send-btn:hover { background: #1d4ed8 !important; }
+        .chat-send-btn:active { transform: scale(0.88); background: #1e40af !important; }
+        .chat-send-btn:disabled { opacity: 0.5; cursor: not-allowed !important; }
+    </style>
+
     {{-- Chat Panel --}}
     <div
         x-show="open"
         x-transition
-        style="margin-bottom:16px;width:380px;height:520px;background:#fff;border-radius:16px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);border:1px solid #e5e7eb;display:flex;flex-direction:column;overflow:hidden;"
+        style="margin-bottom:16px;width:380px;height:520px;background:#fff;border-radius:16px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.25);border:1px solid #e5e7eb;position:relative;overflow:hidden;"
     >
         {{-- Header --}}
-        <div style="background:linear-gradient(to right,#9333ea,#7e22ce);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div style="background:linear-gradient(135deg,#2563eb,#1d4ed8);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:absolute;top:0;left:0;right:0;z-index:1;">
             <div style="display:flex;align-items:center;gap:12px;">
                 <div style="width:32px;height:32px;background:rgba(255,255,255,0.2);border-radius:50%;display:flex;align-items:center;justify-content:center;">
                     <svg style="width:20px;height:20px;color:#fff;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
@@ -17,8 +34,8 @@
                     </svg>
                 </div>
                 <div>
-                    <h3 style="color:#fff;font-weight:600;font-size:14px;margin:0;">VENDR Assistant</h3>
-                    <p style="color:#d8b4fe;font-size:12px;margin:0;">AI Procurement Support</p>
+                    <h3 style="color:#fff;font-weight:600;font-size:14px;margin:0;line-height:1.2;">VENDR Assistant</h3>
+                    <p style="color:#bfdbfe;font-size:12px;margin:0;line-height:1.2;">AI Procurement Support</p>
                 </div>
             </div>
             <div style="display:flex;align-items:center;gap:4px;">
@@ -53,27 +70,27 @@
 
         {{-- Messages Area --}}
         <div
-            style="flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;"
+            style="position:absolute;top:56px;bottom:57px;left:0;right:0;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;"
             id="chat-messages"
             x-ref="chatMessages"
         >
             @if(count($messages) === 0)
                 <div style="text-align:center;padding:32px 0;">
-                    <div style="width:64px;height:64px;background:#f3e8ff;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
-                        <svg style="width:32px;height:32px;color:#a855f7;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <div style="width:64px;height:64px;background:#dbeafe;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+                        <svg style="width:32px;height:32px;color:#3b82f6;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
                         </svg>
                     </div>
                     <p style="color:#6b7280;font-size:14px;font-weight:500;margin:0;">VENDR Assistant</p>
                     <p style="color:#9ca3af;font-size:12px;margin:4px 0 0;">ถามอะไรก็ได้เกี่ยวกับระบบจัดซื้อ</p>
                     <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
-                        <button wire:click="$set('message', 'PR ของฉันถึงไหนแล้ว?')" style="display:block;width:100%;text-align:left;font-size:12px;background:#f9fafb;color:#4b5563;border-radius:8px;padding:8px 12px;border:none;cursor:pointer;">
+                        <button wire:click="$set('message', 'PR ของฉันถึงไหนแล้ว?')" style="display:block;width:100%;text-align:left;font-size:12px;background:#f0f9ff;color:#1e40af;border-radius:8px;padding:8px 12px;border:1px solid #bfdbfe;cursor:pointer;">
                             PR ของฉันถึงไหนแล้ว?
                         </button>
-                        <button wire:click="$set('message', 'งบประมาณแผนกเดือนนี้เหลือเท่าไหร่?')" style="display:block;width:100%;text-align:left;font-size:12px;background:#f9fafb;color:#4b5563;border-radius:8px;padding:8px 12px;border:none;cursor:pointer;">
+                        <button wire:click="$set('message', 'งบประมาณแผนกเดือนนี้เหลือเท่าไหร่?')" style="display:block;width:100%;text-align:left;font-size:12px;background:#f0f9ff;color:#1e40af;border-radius:8px;padding:8px 12px;border:1px solid #bfdbfe;cursor:pointer;">
                             งบประมาณแผนกเดือนนี้เหลือเท่าไหร่?
                         </button>
-                        <button wire:click="$set('message', 'วิธีสร้าง PR ใหม่ทำยังไง?')" style="display:block;width:100%;text-align:left;font-size:12px;background:#f9fafb;color:#4b5563;border-radius:8px;padding:8px 12px;border:none;cursor:pointer;">
+                        <button wire:click="$set('message', 'วิธีสร้าง PR ใหม่ทำยังไง?')" style="display:block;width:100%;text-align:left;font-size:12px;background:#f0f9ff;color:#1e40af;border-radius:8px;padding:8px 12px;border:1px solid #bfdbfe;cursor:pointer;">
                             วิธีสร้าง PR ใหม่ทำยังไง?
                         </button>
                     </div>
@@ -82,13 +99,13 @@
                 @foreach($messages as $msg)
                     @if($msg['role'] === 'user')
                         <div style="display:flex;justify-content:flex-end;">
-                            <div style="background:#9333ea;color:#fff;border-radius:16px 16px 4px 16px;padding:8px 16px;max-width:80%;font-size:14px;">
+                            <div style="background:#2563eb;color:#fff;border-radius:16px 16px 4px 16px;padding:8px 16px;max-width:80%;font-size:14px;line-height:1.5;word-break:break-word;">
                                 {{ $msg['content'] }}
                             </div>
                         </div>
                     @else
                         <div style="display:flex;justify-content:flex-start;">
-                            <div style="background:#f3f4f6;color:#1f2937;border-radius:16px 16px 16px 4px;padding:8px 16px;max-width:80%;font-size:14px;white-space:pre-wrap;">
+                            <div style="background:#f1f5f9;color:#1e293b;border-radius:16px 16px 16px 4px;padding:8px 16px;max-width:80%;font-size:14px;line-height:1.5;white-space:pre-wrap;word-break:break-word;">
                                 {{ $msg['content'] }}
                             </div>
                         </div>
@@ -99,11 +116,11 @@
             {{-- Loading indicator --}}
             @if($isLoading)
                 <div style="display:flex;justify-content:flex-start;">
-                    <div style="background:#f3f4f6;border-radius:16px 16px 16px 4px;padding:12px 16px;">
+                    <div style="background:#f1f5f9;border-radius:16px 16px 16px 4px;padding:12px 16px;">
                         <div style="display:flex;align-items:center;gap:6px;">
-                            <div style="width:8px;height:8px;background:#a855f7;border-radius:50%;animation:chatBounce 1s infinite;"></div>
-                            <div style="width:8px;height:8px;background:#a855f7;border-radius:50%;animation:chatBounce 1s infinite 0.15s;"></div>
-                            <div style="width:8px;height:8px;background:#a855f7;border-radius:50%;animation:chatBounce 1s infinite 0.3s;"></div>
+                            <div style="width:8px;height:8px;background:#3b82f6;border-radius:50%;animation:chatBounce 1s infinite;"></div>
+                            <div style="width:8px;height:8px;background:#3b82f6;border-radius:50%;animation:chatBounce 1s infinite 0.15s;"></div>
+                            <div style="width:8px;height:8px;background:#3b82f6;border-radius:50%;animation:chatBounce 1s infinite 0.3s;"></div>
                         </div>
                     </div>
                 </div>
@@ -111,7 +128,7 @@
         </div>
 
         {{-- Input Area --}}
-        <div style="border-top:1px solid #e5e7eb;padding:12px;flex-shrink:0;">
+        <div style="border-top:1px solid #e5e7eb;padding:12px;background:#fff;position:absolute;bottom:0;left:0;right:0;z-index:1;">
             <form wire:submit.prevent="sendMessage" style="display:flex;align-items:center;gap:8px;">
                 <input
                     type="text"
@@ -123,7 +140,8 @@
                 >
                 <button
                     type="submit"
-                    style="background:#9333ea;color:#fff;border:none;border-radius:12px;padding:10px;cursor:pointer;flex-shrink:0;"
+                    class="chat-send-btn"
+                    style="background:#2563eb;color:#fff;border:none;border-radius:12px;padding:10px;cursor:pointer;flex-shrink:0;"
                     @if($isLoading) disabled @endif
                 >
                     <svg style="width:16px;height:16px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
@@ -134,21 +152,15 @@
         </div>
     </div>
 
-    <style>
-        @keyframes chatBounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-6px); }
-        }
-    </style>
-
     {{-- Floating Button --}}
     <button
         @click="open = !open"
         x-show="!open"
-        style="width:56px;height:56px;background:linear-gradient(to right,#9333ea,#7e22ce);color:#fff;border:none;border-radius:50%;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1);cursor:pointer;display:flex;align-items:center;justify-content:center;"
+        class="chat-fab"
+        style="width:56px;height:56px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:50%;box-shadow:0 8px 24px -4px rgba(37,99,235,0.45);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;"
     >
-        <svg style="width:24px;height:24px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+        <svg style="width:26px;height:26px;display:block;transform:translate(12.5px,-1px);" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z" />
         </svg>
     </button>
 </div>
@@ -161,6 +173,15 @@
             if (el) el.scrollTop = el.scrollHeight;
         }, 100);
     });
+
+    // Auto-scroll on open
+    $wire.watch('isOpen', (value) => {
+        if (value) {
+            setTimeout(() => {
+                const el = document.getElementById('chat-messages');
+                if (el) el.scrollTop = el.scrollHeight;
+            }, 200);
+        }
+    });
 </script>
 @endscript
-
