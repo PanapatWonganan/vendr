@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Carbon\Carbon;
 
 class PaymentMilestone extends BaseModel
@@ -67,6 +68,11 @@ class PaymentMilestone extends BaseModel
     public function paidBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'paid_by');
+    }
+
+    public function goodsReceipt(): HasOne
+    {
+        return $this->hasOne(GoodsReceipt::class);
     }
 
     public function scopeCompany($query, $companyId)

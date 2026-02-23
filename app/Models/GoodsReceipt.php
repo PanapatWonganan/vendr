@@ -3,11 +3,15 @@
 namespace App\Models;
 
 use App\Events\GoodsReceiptCreated;
+use App\Observers\GoodsReceiptObserver;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Auth;
 
+#[ObservedBy(GoodsReceiptObserver::class)]
 class GoodsReceipt extends BaseModel
 {
     use HasFactory;
@@ -17,6 +21,7 @@ class GoodsReceipt extends BaseModel
         'gr_number',
         'receipt_number',
         'purchase_order_id',
+        'payment_milestone_id',
         'vendor_id',
         'inspection_committee_id',
         'receipt_date',
@@ -142,9 +147,9 @@ class GoodsReceipt extends BaseModel
         return $this->hasMany(GoodsReceiptDocument::class);
     }
 
-    public function paymentMilestones(): HasMany
+    public function paymentMilestone(): BelongsTo
     {
-        return $this->hasMany(PaymentMilestone::class);
+        return $this->belongsTo(PaymentMilestone::class);
     }
 
     public function attachments(): HasMany

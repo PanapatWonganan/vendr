@@ -5,13 +5,13 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\GoodsReceiptResource\Pages;
 use App\Filament\Resources\GoodsReceiptResource\RelationManagers;
 use App\Models\GoodsReceipt;
+use App\Models\PaymentMilestone;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class GoodsReceiptResource extends Resource
 {
@@ -44,8 +44,12 @@ class GoodsReceiptResource extends Resource
                             ->preload()
                             ->live()
                             ->afterStateUpdated(function ($state, $set) {
+                                // Reset milestone selection when PO changes
+                                $set('payment_milestone_id', null);
+                                $set('delivery_milestone', null);
+                                $set('milestone_percentage', null);
+
                                 if ($state) {
-                                    // Use company connection from session
                                     $connection = session('company_connection', 'mysql');
 
                                     $po = \App\Models\PurchaseOrder::on($connection)
@@ -53,7 +57,6 @@ class GoodsReceiptResource extends Resource
                                         ->find($state);
 
                                     if ($po) {
-                                        // Get vendor info from PO (prefer vendor over supplier for compatibility)
                                         $vendor = $po->vendor ?: $po->supplier;
                                         if ($vendor) {
                                             $set('vendor_id', $vendor->id);
@@ -64,6 +67,43 @@ class GoodsReceiptResource extends Resource
                             })
                             ->required(),
 
+                        Forms\Components\Select::make('payment_milestone_id')
+                            ->label('งวดชำระเงิน')
+                            ->options(function (Forms\Get $get) {
+                                $poId = $get('purchase_order_id');
+                                if (!$poId) {
+                                    return [];
+                                }
+
+                                $connection = session('company_connection', 'mysql');
+
+                                return PaymentMilestone::on($connection)
+                                    ->where('purchase_order_id', $poId)
+                                    ->whereDoesntHave('goodsReceipt')
+                                    ->orderBy('milestone_number')
+                                    ->get()
+                                    ->mapWithKeys(fn ($m) => [
+                                        $m->id => "งวดที่ {$m->milestone_number} - {$m->milestone_title} ({$m->percentage}%)"
+                                    ]);
+                            })
+                            ->live()
+                            ->afterStateUpdated(function ($state, $set) {
+                                if ($state) {
+                                    $connection = session('company_connection', 'mysql');
+                                    $milestone = PaymentMilestone::on($connection)->find($state);
+                                    if ($milestone) {
+                                        $set('delivery_milestone', $milestone->milestone_number);
+                                        $set('milestone_percentage', $milestone->percentage);
+                                    }
+                                } else {
+                                    $set('delivery_milestone', null);
+                                    $set('milestone_percentage', null);
+                                }
+                            })
+                            ->placeholder('เลือก PO ก่อน แล้วเลือกงวด')
+                            ->helperText('แสดงเฉพาะงวดที่ยังไม่ได้ตรวจรับ')
+                            ->required(),
+
                         Forms\Components\Hidden::make('vendor_id')
                             ->dehydrated(true),
 
@@ -72,7 +112,7 @@ class GoodsReceiptResource extends Resource
                             ->disabled()
                             ->dehydrated(false)
                             ->placeholder('เลือก PO เพื่อดึงข้อมูลผู้ขาย')
-                            ->helperText('✓ ดึงข้อมูลจาก PO อัตโนมัติ'),
+                            ->helperText('ดึงข้อมูลจาก PO อัตโนมัติ'),
                         Forms\Components\Select::make('inspection_committee_id')
                             ->label('คณะกรรมการตรวจสอบ')
                             ->relationship('inspectionCommittee', 'name')
@@ -94,17 +134,17 @@ class GoodsReceiptResource extends Resource
                             ->default(now()),
                         Forms\Components\TextInput::make('delivery_milestone')
                             ->label('งวดที่')
-                            ->required()
-                            ->numeric()
-                            ->minValue(1),
+                            ->disabled()
+                            ->dehydrated(true)
+                            ->placeholder('เลือกงวดชำระเงินด้านบน')
+                            ->helperText('ดึงจากงวดชำระเงินอัตโนมัติ'),
                         Forms\Components\TextInput::make('milestone_percentage')
                             ->label('เปอร์เซ็นต์')
-                            ->required()
-                            ->numeric()
-                            ->minValue(0)
-                            ->maxValue(100)
+                            ->disabled()
+                            ->dehydrated(true)
                             ->suffix('%')
-                            ->default(100),
+                            ->placeholder('-')
+                            ->helperText('ดึงจากงวดชำระเงินอัตโนมัติ'),
                         Forms\Components\Select::make('inspection_status')
                             ->label('สถานะตรวจสอบ')
                             ->required()
@@ -181,13 +221,22 @@ class GoodsReceiptResource extends Resource
                     ->label('วันที่รับ')
                     ->date('d/m/Y')
                     ->sortable(),
-                Tables\Columns\BadgeColumn::make('delivery_milestone')
-                    ->label('งวดที่')
-                    ->formatStateUsing(fn ($state) => "งวดที่ {$state}")
+                Tables\Columns\TextColumn::make('paymentMilestone.milestone_title')
+                    ->label('งวด')
+                    ->formatStateUsing(function ($state, $record) {
+                        if ($record->paymentMilestone) {
+                            return "งวดที่ {$record->paymentMilestone->milestone_number} - {$state}";
+                        }
+                        return $record->delivery_milestone ? "งวดที่ {$record->delivery_milestone}" : '-';
+                    })
+                    ->badge()
                     ->color('info'),
-                Tables\Columns\TextColumn::make('milestone_percentage')
+                Tables\Columns\TextColumn::make('paymentMilestone.percentage')
                     ->label('%')
-                    ->formatStateUsing(fn ($state) => number_format($state, 1) . '%')
+                    ->formatStateUsing(function ($state, $record) {
+                        $pct = $state ?? $record->milestone_percentage;
+                        return $pct ? number_format($pct, 1) . '%' : '-';
+                    })
                     ->alignCenter(),
                 Tables\Columns\BadgeColumn::make('inspection_status')
                     ->label('สถานะตรวจสอบ')
