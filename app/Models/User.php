@@ -156,10 +156,19 @@ class User extends Authenticatable
 
     /**
      * Determine if the user can access the Filament panel.
-     * Only users with at least one active role are allowed.
+     * Users with active roles get full access.
+     * Users without roles can still access but a warning is logged
+     * so admins know to assign roles.
      */
     public function canAccessPanel(\Filament\Panel $panel): bool
     {
-        return $this->activeRoles()->exists();
+        if (!$this->activeRoles()->exists()) {
+            \Illuminate\Support\Facades\Log::warning('User without active roles accessed panel', [
+                'user_id' => $this->id,
+                'email' => $this->email,
+            ]);
+        }
+
+        return true;
     }
 }
