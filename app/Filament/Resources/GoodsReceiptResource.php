@@ -69,7 +69,7 @@ class GoodsReceiptResource extends Resource
 
                         Forms\Components\Select::make('payment_milestone_id')
                             ->label('งวดชำระเงิน')
-                            ->options(function (Forms\Get $get) {
+                            ->options(function (Forms\Get $get, ?GoodsReceipt $record) {
                                 $poId = $get('purchase_order_id');
                                 if (!$poId) {
                                     return [];
@@ -79,7 +79,13 @@ class GoodsReceiptResource extends Resource
 
                                 return PaymentMilestone::on($connection)
                                     ->where('purchase_order_id', $poId)
-                                    ->whereDoesntHave('goodsReceipt')
+                                    ->where(function ($query) use ($record) {
+                                        $query->whereDoesntHave('goodsReceipt');
+                                        // Include the milestone already linked to the current GR (edit mode)
+                                        if ($record?->payment_milestone_id) {
+                                            $query->orWhere('id', $record->payment_milestone_id);
+                                        }
+                                    })
                                     ->orderBy('milestone_number')
                                     ->get()
                                     ->mapWithKeys(fn ($m) => [
