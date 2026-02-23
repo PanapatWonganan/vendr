@@ -18,6 +18,10 @@ class ChatWidget extends Component
 
     public function mount(): void
     {
+        if (!Auth::check() || !session('company_id')) {
+            return;
+        }
+
         $this->loadOrCreateConversation();
     }
 
