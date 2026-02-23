@@ -53,9 +53,10 @@ Route::middleware(['auth', CompanyMiddleware::class])->group(function () {
     // Note: GR/MR now managed via Filament Admin Panel only
 });
 
-// Telegram Bot Webhook (no auth - verified by token in URL)
+// Telegram Bot Webhook (token validated in controller)
 Route::post('/telegram/webhook/{token}', [\App\Http\Controllers\TelegramWebhookController::class, 'handle'])
     ->name('telegram.webhook')
+    ->middleware('throttle:60,1')
     ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
 
 // Telegram polling command for local dev (no webhook needed)

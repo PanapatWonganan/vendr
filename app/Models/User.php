@@ -156,10 +156,10 @@ class User extends Authenticatable
 
     /**
      * Determine if the user can access the Filament panel.
+     * Only users with at least one active role are allowed.
      */
     public function canAccessPanel(\Filament\Panel $panel): bool
     {
-        // Allow all authenticated users to access the panel
-        return true;
+        return $this->activeRoles()->exists();
     }
 }

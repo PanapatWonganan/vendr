@@ -735,10 +735,13 @@ class PurchaseOrderController extends Controller
     }
 
     /**
-     * Download file
+     * Download file (with company ownership check)
      */
     public function downloadFile(PurchaseOrderFile $file)
     {
+        // Verify file belongs to user's current company
+        $this->authorizeFileAccess($file);
+
         if (!Storage::disk('public')->exists($file->file_path)) {
             return back()->with('error', 'ไม่พบไฟล์ที่ต้องการดาวน์โหลด');
         }
@@ -747,10 +750,13 @@ class PurchaseOrderController extends Controller
     }
 
     /**
-     * View file in browser
+     * View file in browser (with company ownership check)
      */
     public function viewFile(PurchaseOrderFile $file)
     {
+        // Verify file belongs to user's current company
+        $this->authorizeFileAccess($file);
+
         if (!Storage::disk('public')->exists($file->file_path)) {
             abort(404, 'ไม่พบไฟล์ที่ต้องการ');
         }
@@ -765,6 +771,17 @@ class PurchaseOrderController extends Controller
         ];
 
         return response()->file($filePath, $headers);
+    }
+
+    /**
+     * Verify file's PO belongs to the user's current company.
+     */
+    private function authorizeFileAccess(PurchaseOrderFile $file): void
+    {
+        $po = $file->purchaseOrder;
+        if (!$po || (int) $po->company_id !== (int) session('company_id')) {
+            abort(403, 'คุณไม่มีสิทธิ์เข้าถึงไฟล์นี้');
+        }
     }
 
     /**

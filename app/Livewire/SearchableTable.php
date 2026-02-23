@@ -89,11 +89,11 @@ class SearchableTable extends Component
             case 'datetime':
                 return $value ? $value->format($column['format'] ?? 'd/m/Y H:i') : '-';
             case 'badge':
-                $badgeClass = $column['badge_class'] ?? 'bg-primary';
-                return "<span class='badge {$badgeClass}'>{$value}</span>";
+                $badgeClass = e($column['badge_class'] ?? 'bg-primary');
+                return "<span class='badge {$badgeClass}'>" . e($value) . "</span>";
             case 'link':
-                $url = $column['url'] ?? '#';
-                return "<a href='{$url}' class='text-blue-600 hover:text-blue-800'>{$value}</a>";
+                $url = e($column['url'] ?? '#');
+                return "<a href='{$url}' class='text-blue-600 hover:text-blue-800'>" . e($value) . "</a>";
             default:
                 return $value;
         }

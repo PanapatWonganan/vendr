@@ -6,13 +6,9 @@ use Filament\Http\Middleware\Authenticate as FilamentAuthenticate;
 
 class CustomFilamentAuth extends FilamentAuthenticate
 {
-    protected function authenticate($request, array $guards): void
-    {
-        // ให้ผ่านถ้า user login แล้ว (bypass canAccessPanel check)
-        if (auth()->check()) {
-            return;
-        }
-
-        parent::authenticate($request, $guards);
-    }
+    /**
+     * Authenticate the request using the parent's implementation,
+     * which properly calls canAccessPanel() on the User model.
+     * No override needed — the parent handles auth + panel access check.
+     */
 }

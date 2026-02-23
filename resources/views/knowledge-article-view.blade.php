@@ -64,9 +64,9 @@
             </div>
             @endif
 
-            <!-- Content -->
+            <!-- Content (sanitized: allow safe HTML tags only) -->
             <div class="prose prose-lg max-w-none">
-                {!! $article->content !!}
+                {!! strip_tags($article->content, '<p><br><strong><b><em><i><u><ul><ol><li><h1><h2><h3><h4><h5><h6><a><img><table><thead><tbody><tr><th><td><blockquote><code><pre><span><div><hr><figure><figcaption><sub><sup>') !!}
             </div>
 
             <!-- Footer -->

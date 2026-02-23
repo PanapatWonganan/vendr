@@ -4,6 +4,7 @@ namespace App\Filament\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use App\Models\BaseModel;
 use App\Filament\Pages\CompanySelect;
@@ -33,13 +34,24 @@ class CompanyMiddleware
             if ($request->is('admin/*')) {
                 return redirect()->to(CompanySelect::getUrl());
             }
-        }
+        } else {
+            // Validate that the selected company still exists and is active (cached 60s)
+            $isActive = Cache::remember("company_active_{$companyId}", 60, function () use ($companyId) {
+                return \App\Models\Company::where('id', $companyId)
+                    ->where('is_active', true)
+                    ->exists();
+            });
 
-        // Set database connection for models (ปิดการใช้งานชั่วคราว เพราะใช้ single database)
-        // if ($companyConnection) {
-        //     BaseModel::setCompanyConnection($companyConnection);
-        //     config(['database.default' => $companyConnection]);
-        // }
+            if (!$isActive) {
+                session()->forget(['company_id', 'company_connection', 'company_name']);
+                Cache::forget("company_active_{$companyId}");
+
+                if ($request->is('admin/*')) {
+                    return redirect()->to(CompanySelect::getUrl())
+                        ->with('error', 'บริษัทที่เลือกไม่สามารถใช้งานได้แล้ว กรุณาเลือกบริษัทใหม่');
+                }
+            }
+        }
 
         return $next($request);
     }
