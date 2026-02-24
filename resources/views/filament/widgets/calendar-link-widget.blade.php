@@ -20,11 +20,15 @@
                     </p>
                 </div>
             </div>
-            <a href="{{ url('/admin/calendar-page') }}"
-               class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors">
-                <x-heroicon-m-calendar-days class="w-4 h-4" />
+            <x-filament::button
+                href="{{ url('/admin/calendar-page') }}"
+                tag="a"
+                icon="heroicon-m-calendar-days"
+                size="sm"
+                color="info"
+            >
                 ดูปฏิทิน
-            </a>
+            </x-filament::button>
         </div>
     </x-filament::section>
 </x-filament-widgets::widget>

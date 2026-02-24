@@ -479,6 +479,7 @@ class PurchaseOrderResource extends Resource
 
                                     Forms\Components\TextInput::make('milestone_title')
                                         ->label('ชื่องวด')
+                                        ->required()
                                         ->placeholder('เช่น มัดจำ, งวดกลาง, งวดสุดท้าย'),
 
                                     Forms\Components\TextInput::make('percentage')
@@ -520,6 +521,7 @@ class PurchaseOrderResource extends Resource
                                 Forms\Components\Grid::make(2)->schema([
                                     Forms\Components\DatePicker::make('due_date')
                                         ->label('วันครบกำหนด')
+                                        ->required()
                                         ->native(false),
 
                                     Forms\Components\Select::make('status')
@@ -541,7 +543,7 @@ class PurchaseOrderResource extends Resource
                                     ->placeholder('เช่น จ่ายหลังส่งมอบงวดที่ 1, จ่ายใน 30 วัน'),
 
                                 Forms\Components\Hidden::make('company_id')
-                                    ->default(session('selected_company_id')),
+                                    ->default(fn () => session('company_id')),
 
                                 Forms\Components\Hidden::make('created_by')
                                     ->default(auth()->id()),
@@ -550,8 +552,8 @@ class PurchaseOrderResource extends Resource
                             ->addActionLabel('เพิ่มงวดการจ่าย')
                             ->reorderable(false)
                             ->collapsible()
-                            ->itemLabel(fn (array $state): ?string => 
-                                !empty($state['milestone_name']) ? $state['milestone_name'] : 'งวดการจ่าย'
+                            ->itemLabel(fn (array $state): ?string =>
+                                !empty($state['milestone_title']) ? $state['milestone_title'] : 'งวดการจ่าย'
                             ),
                     ])
                     ->collapsed()
