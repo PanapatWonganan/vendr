@@ -4,8 +4,10 @@ namespace App\Filament\Actions;
 
 use Filament\Tables\Actions\Action;
 use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use App\Events\PurchaseOrderRejected;
 
 class RejectPurchaseOrderAction extends Action
@@ -25,8 +27,8 @@ class RejectPurchaseOrderAction extends Action
             ->color('danger')
             ->requiresConfirmation()
             ->modalHeading('ปฏิเสธใบสั่งซื้อ')
-            ->modalDescription('คุณแน่ใจหรือไม่ที่ต้องการปฏิเสธใบสั่งซื้อนี้?')
-            ->modalSubmitActionLabel('ปฏิเสธ')
+            ->modalDescription(fn (Model $record) => "คุณต้องการปฏิเสธ {$record->po_number} หรือไม่?")
+            ->modalSubmitActionLabel('ยืนยันปฏิเสธ')
             ->form([
                 Textarea::make('rejection_notes')
                     ->label('เหตุผลการปฏิเสธ')
@@ -36,28 +38,43 @@ class RejectPurchaseOrderAction extends Action
             ])
             ->action(function (Model $record, array $data): void {
                 $user = Auth::user();
-                
-                // Check permissions
+
                 if (!$this->canReject($record, $user)) {
-                    $this->failure();
+                    Notification::make()
+                        ->title('ไม่มีสิทธิ์ปฏิเสธ')
+                        ->body('คุณไม่มีสิทธิ์ปฏิเสธใบสั่งซื้อนี้')
+                        ->danger()
+                        ->send();
                     return;
                 }
 
-                // Update PO status
-                $record->update([
-                    'status' => 'rejected',
-                    'rejected_by' => $user->id,
-                    'rejected_at' => now(),
-                    'rejection_notes' => $data['rejection_notes'],
-                ]);
+                try {
+                    $record->update([
+                        'status' => 'rejected',
+                        'rejected_by' => $user->id,
+                        'rejected_at' => now(),
+                        'rejection_notes' => $data['rejection_notes'],
+                    ]);
 
-                // Fire event for email notifications
-                event(new PurchaseOrderRejected($record, $user));
+                    event(new PurchaseOrderRejected($record, $user));
 
-                $this->success();
+                    Notification::make()
+                        ->title('ปฏิเสธเรียบร้อย')
+                        ->body("ปฏิเสธ {$record->po_number} เรียบร้อยแล้ว")
+                        ->success()
+                        ->send();
+                } catch (\Exception $e) {
+                    Log::error('PO reject failed', ['po_id' => $record->id, 'error' => $e->getMessage()]);
+
+                    Notification::make()
+                        ->title('เกิดข้อผิดพลาด')
+                        ->body('ไม่สามารถปฏิเสธได้: ' . $e->getMessage())
+                        ->danger()
+                        ->send();
+                }
             })
             ->visible(function (Model $record): bool {
-                return $record->status === 'pending_approval' && 
+                return $record->status === 'pending_approval' &&
                        $this->canReject($record, Auth::user());
             });
     }
