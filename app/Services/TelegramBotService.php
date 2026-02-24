@@ -3734,6 +3734,9 @@ class TelegramBotService
             'rejected_notes' => $reason,
         ]);
 
+        // Fire event → triggers email + Telegram notifications via listener
+        event(new \App\Events\PurchaseRequisitionRejected($pr, $user));
+
         $this->sendMessage($chatId,
             "❌ <b>ปฏิเสธ PR แล้ว</b>\n\n" .
             "📋 {$pr->pr_number}\n" .
@@ -3742,9 +3745,6 @@ class TelegramBotService
             "👤 โดย: {$user->name}\n" .
             "🕐 เวลา: " . now()->format('d/m/Y H:i')
         );
-
-        // Notify requester
-        $this->notifyPRRejected($pr, $user, $reason);
     }
 
     // ==========================================
@@ -4216,6 +4216,9 @@ class TelegramBotService
                 'approved_at' => now(),
             ]);
 
+            // Fire event → triggers email + Telegram notifications via listener
+            event(new \App\Events\PurchaseRequisitionApproved($pr, $user));
+
             $this->answerCallbackQuery($callbackId, '✅ อนุมัติสำเร็จ');
             $this->editMessage($chatId, $messageId,
                 "✅ <b>อนุมัติแล้ว</b>\n\n" .
@@ -4224,9 +4227,6 @@ class TelegramBotService
                 "👤 อนุมัติโดย: {$user->name}\n" .
                 "🕐 เวลา: " . now()->format('d/m/Y H:i')
             );
-
-            // Notify requester via Telegram
-            $this->notifyPRApproved($pr, $user);
 
         } elseif ($action === 'reject_pr') {
             // Ask for rejection reason
