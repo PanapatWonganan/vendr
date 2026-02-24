@@ -103,7 +103,7 @@ class User extends Authenticatable implements FilamentUser
         return $this->roles()
             ->wherePivot('is_active', true)
             ->where('roles.is_active', true)
-            ->whereRaw('role_user.expires_at IS NULL OR role_user.expires_at > NOW()');
+            ->whereRaw('(role_user.expires_at IS NULL OR role_user.expires_at > NOW())');
     }
 
     /**
