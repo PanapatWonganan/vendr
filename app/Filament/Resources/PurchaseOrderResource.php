@@ -13,8 +13,6 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Filament\Notifications\Notification;
-use App\Filament\Actions\ApprovePurchaseOrderAction;
-use App\Filament\Actions\RejectPurchaseOrderAction;
 
 class PurchaseOrderResource extends Resource
 {
@@ -737,9 +735,74 @@ class PurchaseOrderResource extends Resource
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
 
-                // Approve/Reject inline actions
-                new ApprovePurchaseOrderAction('approve'),
-                new RejectPurchaseOrderAction('reject'),
+                // Approve PO (pending_approval only)
+                Tables\Actions\Action::make('approve')
+                    ->label('อนุมัติ')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->visible(fn ($record) => $record->status === 'pending_approval'
+                        && auth()->user()?->hasAnyRole(['admin', 'procurement_manager', 'department_head']))
+                    ->requiresConfirmation()
+                    ->modalHeading(fn ($record) => "อนุมัติ {$record->po_number}")
+                    ->modalDescription('คุณต้องการอนุมัติใบสั่งซื้อนี้หรือไม่?')
+                    ->modalSubmitActionLabel('ยืนยันอนุมัติ')
+                    ->form([
+                        \Filament\Forms\Components\Textarea::make('approval_notes')
+                            ->label('หมายเหตุ (ถ้ามี)')
+                            ->rows(2),
+                    ])
+                    ->action(function ($record, array $data) {
+                        $user = auth()->user();
+                        $record->update([
+                            'status' => 'approved',
+                            'approved_by' => $user->id,
+                            'approved_at' => now(),
+                            'approval_notes' => $data['approval_notes'] ?? null,
+                        ]);
+
+                        event(new \App\Events\PurchaseOrderApproved($record, $user));
+
+                        Notification::make()
+                            ->title('อนุมัติเรียบร้อย')
+                            ->body("อนุมัติ {$record->po_number} แล้ว")
+                            ->success()
+                            ->send();
+                    }),
+
+                // Reject PO (pending_approval only)
+                Tables\Actions\Action::make('reject')
+                    ->label('ปฏิเสธ')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->visible(fn ($record) => $record->status === 'pending_approval'
+                        && auth()->user()?->hasAnyRole(['admin', 'procurement_manager', 'department_head']))
+                    ->requiresConfirmation()
+                    ->modalHeading(fn ($record) => "ปฏิเสธ {$record->po_number}")
+                    ->modalDescription('คุณต้องการปฏิเสธใบสั่งซื้อนี้หรือไม่?')
+                    ->modalSubmitActionLabel('ยืนยันปฏิเสธ')
+                    ->form([
+                        \Filament\Forms\Components\Textarea::make('rejection_notes')
+                            ->label('เหตุผลการปฏิเสธ')
+                            ->required()
+                            ->rows(3),
+                    ])
+                    ->action(function ($record, array $data) {
+                        $user = auth()->user();
+                        $record->update([
+                            'status' => 'rejected',
+                            'rejected_by' => $user->id,
+                            'rejected_at' => now(),
+                            'rejection_notes' => $data['rejection_notes'],
+                        ]);
+
+                        event(new \App\Events\PurchaseOrderRejected($record, $user));
+
+                        Notification::make()
+                            ->title('ปฏิเสธเรียบร้อย')
+                            ->body("ปฏิเสธ {$record->po_number} แล้ว")
+                            ->success()
+                            ->send();
+                    }),
 
                 // Submit for Approval (draft only)
                 Tables\Actions\Action::make('submitForApproval')
