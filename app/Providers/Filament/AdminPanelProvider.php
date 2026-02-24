@@ -104,26 +104,37 @@ class AdminPanelProvider extends PanelProvider
                     ->group('Procurement Management')
                     ->sort(1)
                     ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'requester', 'department_head', 'procurement_officer', 'procurement_manager', 'procurement_committee', 'auditor'])),
-                NavigationItem::make('รออนุมัติ')
+                NavigationItem::make('PR รออนุมัติ')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('pending-approvals'))
                     ->icon('heroicon-o-clock')
                     ->group('Procurement Management')
                     ->sort(2)
                     ->badge(function () {
-                        return \App\Models\PurchaseRequisition::where('status', 'pending_approval')->count();
+                        $count = \App\Models\PurchaseRequisition::where('status', 'pending_approval')->count();
+                        return $count > 0 ? (string) $count : null;
+                    })
+                    ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'department_head', 'procurement_officer', 'procurement_manager', 'auditor'])),
+                NavigationItem::make('PO รออนุมัติ')
+                    ->url(fn () => \App\Filament\Resources\PurchaseOrderResource::getUrl('pending-approvals'))
+                    ->icon('heroicon-o-clipboard-document-check')
+                    ->group('Procurement Management')
+                    ->sort(3)
+                    ->badge(function () {
+                        $count = \App\Models\PurchaseOrder::where('status', 'pending_approval')->count();
+                        return $count > 0 ? (string) $count : null;
                     })
                     ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'department_head', 'procurement_officer', 'procurement_manager', 'auditor'])),
                 NavigationItem::make('จัดหาฯ ไม่เกิน 1 หมื่นบาท')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('create-direct-small'))
                     ->icon('heroicon-o-shopping-cart')
                     ->group('Procurement Management')
-                    ->sort(4)
+                    ->sort(5)
                     ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'requester', 'department_head', 'procurement_officer', 'procurement_manager'])),
                 NavigationItem::make('จัดหาฯ ไม่เกิน 1 แสนบาท')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('create-direct-medium'))
                     ->icon('heroicon-o-shopping-bag')
                     ->group('Procurement Management')
-                    ->sort(5)
+                    ->sort(6)
                     ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'requester', 'department_head', 'procurement_officer', 'procurement_manager'])),
             ]);
     }

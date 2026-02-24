@@ -737,15 +737,19 @@ class PurchaseOrderResource extends Resource
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\EditAction::make(),
 
-                // Enhanced PO Workflow Actions
+                // Approve/Reject inline actions
+                new ApprovePurchaseOrderAction('approve'),
+                new RejectPurchaseOrderAction('reject'),
+
+                // Submit for Approval (draft only)
                 Tables\Actions\Action::make('submitForApproval')
-                    ->label('Submit for Approval')
+                    ->label('ส่งอนุมัติ')
                     ->icon('heroicon-o-paper-airplane')
                     ->color('primary')
                     ->visible(fn ($record) => $record->status === 'draft' && $record->created_by === Auth::id())
                     ->requiresConfirmation()
-                    ->modalHeading('Submit PO for Approval')
-                    ->modalDescription('Are you sure you want to submit this Purchase Order for approval?')
+                    ->modalHeading('ส่ง PO เพื่ออนุมัติ')
+                    ->modalDescription('คุณต้องการส่งใบสั่งซื้อนี้เพื่อขออนุมัติหรือไม่?')
                     ->action(function ($record) {
                         $record->update([
                             'status' => 'pending_approval',
@@ -753,8 +757,8 @@ class PurchaseOrderResource extends Resource
                         ]);
 
                         Notification::make()
-                            ->title('PO Submitted')
-                            ->body('Purchase order has been submitted for approval')
+                            ->title('ส่งอนุมัติแล้ว')
+                            ->body('ใบสั่งซื้อถูกส่งเพื่อขออนุมัติเรียบร้อย')
                             ->success()
                             ->send();
                     }),
@@ -762,6 +766,45 @@ class PurchaseOrderResource extends Resource
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),
+
+                    // Bulk approve
+                    Tables\Actions\BulkAction::make('bulkApprove')
+                        ->label('อนุมัติที่เลือก')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('อนุมัติ PO ที่เลือก')
+                        ->modalDescription('คุณต้องการอนุมัติใบสั่งซื้อที่เลือกทั้งหมดหรือไม่?')
+                        ->deselectRecordsAfterCompletion()
+                        ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'procurement_manager', 'department_head']))
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records) {
+                            $user = Auth::user();
+                            $approved = 0;
+
+                            foreach ($records as $record) {
+                                if ($record->status !== 'pending_approval') continue;
+
+                                // Permission check
+                                $canApprove = $user->hasAnyRole(['admin', 'procurement_manager'])
+                                    || ($user->hasRole('department_head') && $user->department_id === $record->department_id);
+
+                                if (!$canApprove) continue;
+
+                                $record->update([
+                                    'status' => 'approved',
+                                    'approved_by' => $user->id,
+                                    'approved_at' => now(),
+                                ]);
+
+                                event(new \App\Events\PurchaseOrderApproved($record, $user));
+                                $approved++;
+                            }
+
+                            Notification::make()
+                                ->title("อนุมัติแล้ว {$approved} รายการ")
+                                ->success()
+                                ->send();
+                        }),
                 ]),
             ]);
     }
