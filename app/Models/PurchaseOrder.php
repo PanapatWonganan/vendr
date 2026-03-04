@@ -15,6 +15,9 @@ class PurchaseOrder extends BaseModel
         'company_id',
         'pr_id',
         'purchase_requisition_id',
+        'value_analysis_id',
+        'amendment_number',
+        'last_amended_at',
         'po_number',
         'sap_po_number',
         'po_title',
@@ -95,6 +98,8 @@ class PurchaseOrder extends BaseModel
         'is_confirmed' => 'boolean',
         'po_created_at' => 'datetime',
         'po_approved_at' => 'datetime',
+        'last_amended_at' => 'datetime',
+        'amendment_number' => 'integer',
         // SOW field casts
         'start_date' => 'date',
         'end_date' => 'date',
@@ -131,6 +136,37 @@ class PurchaseOrder extends BaseModel
     public function vendor(): BelongsTo
     {
         return $this->belongsTo(\App\Models\Vendor::class);
+    }
+
+    public function valueAnalysis(): BelongsTo
+    {
+        return $this->belongsTo(ValueAnalysis::class);
+    }
+
+    public function amendments(): HasMany
+    {
+        return $this->hasMany(PoAmendment::class)->orderBy('amendment_number');
+    }
+
+    public function isAmended(): bool
+    {
+        return $this->amendment_number > 0;
+    }
+
+    public function getAmendmentLabelAttribute(): string
+    {
+        if ($this->amendment_number <= 0) {
+            return '';
+        }
+        return 'แก้ไขครั้งที่ ' . $this->amendment_number;
+    }
+
+    public function canRequestAmendment(): bool
+    {
+        return in_array($this->status, [
+            'approved', 'sent_to_supplier', 'acknowledged',
+            'partially_received', 'fully_received',
+        ]);
     }
 
     public function inspectionCommittee(): BelongsTo

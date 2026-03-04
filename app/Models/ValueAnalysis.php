@@ -13,8 +13,20 @@ class ValueAnalysis extends Model
 
     protected $table = 'value_analysis';
 
+    const AMENDMENT_TYPES = [
+        'price_change' => 'ปรับราคา',
+        'quantity_change' => 'ปรับจำนวน',
+        'scope_change' => 'ปรับขอบเขตงาน',
+        'item_change' => 'เพิ่ม/ลบรายการ',
+        'general' => 'แก้ไขทั่วไป',
+    ];
+
     protected $fillable = [
         'va_number',
+        'parent_va_id',
+        'revision_number',
+        'amendment_type',
+        'amendment_reason',
         'purchase_requisition_id',
         'work_type',
         'procurement_method',
@@ -45,6 +57,7 @@ class ValueAnalysis extends Model
         'comparison_matrix' => 'array',
         'analysis_date' => 'datetime',
         'approved_at' => 'datetime',
+        'revision_number' => 'integer',
     ];
 
     // Relationships
@@ -71,6 +84,166 @@ class ValueAnalysis extends Model
     public function items(): HasMany
     {
         return $this->hasMany(ValueAnalysisItem::class)->orderBy('line_number');
+    }
+
+    // Revision Relationships
+
+    public function parentVa(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_va_id');
+    }
+
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_va_id')->orderBy('revision_number');
+    }
+
+    public function isRevision(): bool
+    {
+        return $this->parent_va_id !== null;
+    }
+
+    public function getOriginal_va(): self
+    {
+        return $this->parent_va_id ? $this->parentVa : $this;
+    }
+
+    public function latestRevision(): ?self
+    {
+        return $this->revisions()->latest('revision_number')->first();
+    }
+
+    public function getLatestApprovedRevision(): ?self
+    {
+        return $this->revisions()->where('status', 'approved')->latest('revision_number')->first();
+    }
+
+    /**
+     * Create a revision copy of this VA for amendment purposes.
+     */
+    public function createRevision(string $amendmentType, string $amendmentReason, int $createdBy): self
+    {
+        $originalVaId = $this->parent_va_id ?? $this->id;
+        $originalVa = $this->parent_va_id ? $this->parentVa : $this;
+
+        $nextRevision = self::where('parent_va_id', $originalVaId)
+            ->max('revision_number') ?? $originalVa->revision_number;
+
+        $revision = self::create([
+            'va_number' => self::generateVANumber(),
+            'parent_va_id' => $originalVaId,
+            'revision_number' => $nextRevision + 1,
+            'amendment_type' => $amendmentType,
+            'amendment_reason' => $amendmentReason,
+            'purchase_requisition_id' => $this->purchase_requisition_id,
+            'work_type' => $this->work_type,
+            'procurement_method' => $this->procurement_method,
+            'procured_from' => $this->procured_from,
+            'agreed_amount' => $this->agreed_amount,
+            'total_budget' => $this->total_budget,
+            'currency' => $this->currency,
+            'analysis_objective' => $this->analysis_objective,
+            'analysis_scope' => $this->analysis_scope,
+            'evaluation_criteria' => $this->evaluation_criteria,
+            'alternatives' => $this->alternatives,
+            'comparison_matrix' => $this->comparison_matrix,
+            'recommendations' => $this->recommendations,
+            'conclusion' => $this->conclusion,
+            'status' => 'draft',
+            'created_by' => $createdBy,
+        ]);
+
+        // Copy items from current VA
+        foreach ($this->items as $item) {
+            $revision->items()->create([
+                'purchase_requisition_item_id' => $item->purchase_requisition_item_id,
+                'line_number' => $item->line_number,
+                'item_code' => $item->item_code,
+                'description' => $item->description,
+                'quantity' => $item->quantity,
+                'unit_of_measure' => $item->unit_of_measure,
+                'estimated_unit_price' => $item->agreed_unit_price,
+                'estimated_amount' => $item->agreed_amount,
+                'agreed_unit_price' => $item->agreed_unit_price,
+                'agreed_amount' => $item->agreed_amount,
+            ]);
+        }
+
+        return $revision;
+    }
+
+    /**
+     * Get changes compared to the parent VA (for comparison display).
+     */
+    public function getChangesFromParent(): ?array
+    {
+        if (!$this->parent_va_id) {
+            return null;
+        }
+
+        $parent = $this->parentVa;
+        $changes = [];
+
+        // Compare totals
+        if ((float) $parent->agreed_amount !== (float) $this->agreed_amount) {
+            $changes['agreed_amount'] = [
+                'old' => $parent->agreed_amount,
+                'new' => $this->agreed_amount,
+                'diff' => $this->agreed_amount - $parent->agreed_amount,
+            ];
+        }
+
+        // Compare items
+        $parentItems = $parent->items->keyBy('line_number');
+        $currentItems = $this->items->keyBy('line_number');
+
+        $itemChanges = [];
+        foreach ($currentItems as $lineNumber => $item) {
+            $parentItem = $parentItems->get($lineNumber);
+            if (!$parentItem) {
+                $itemChanges[] = ['type' => 'added', 'item' => $item];
+            } else {
+                $diffs = [];
+                if ((float) $parentItem->agreed_unit_price !== (float) $item->agreed_unit_price) {
+                    $diffs['agreed_unit_price'] = ['old' => $parentItem->agreed_unit_price, 'new' => $item->agreed_unit_price];
+                }
+                if ((float) $parentItem->quantity !== (float) $item->quantity) {
+                    $diffs['quantity'] = ['old' => $parentItem->quantity, 'new' => $item->quantity];
+                }
+                if ($parentItem->description !== $item->description) {
+                    $diffs['description'] = ['old' => $parentItem->description, 'new' => $item->description];
+                }
+                if (!empty($diffs)) {
+                    $itemChanges[] = ['type' => 'changed', 'line_number' => $lineNumber, 'diffs' => $diffs];
+                }
+            }
+        }
+
+        // Detect removed items
+        foreach ($parentItems as $lineNumber => $item) {
+            if (!$currentItems->has($lineNumber)) {
+                $itemChanges[] = ['type' => 'removed', 'item' => $item];
+            }
+        }
+
+        if (!empty($itemChanges)) {
+            $changes['items'] = $itemChanges;
+        }
+
+        return empty($changes) ? null : $changes;
+    }
+
+    public function getRevisionLabelAttribute(): string
+    {
+        if ($this->revision_number <= 1 && !$this->parent_va_id) {
+            return '';
+        }
+        return 'Rev.' . $this->revision_number;
+    }
+
+    public function getAmendmentTypeLabelAttribute(): string
+    {
+        return self::AMENDMENT_TYPES[$this->amendment_type] ?? $this->amendment_type ?? '';
     }
 
     /**

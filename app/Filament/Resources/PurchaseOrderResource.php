@@ -602,7 +602,8 @@ class PurchaseOrderResource extends Resource
                 Tables\Columns\TextColumn::make('po_number')
                     ->label('PO Number')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->description(fn ($record) => $record->amendment_label),
 
                 Tables\Columns\TextColumn::make('po_title')
                     ->label('Title')
@@ -760,11 +761,25 @@ class PurchaseOrderResource extends Resource
                             'approval_notes' => $data['approval_notes'] ?? null,
                         ]);
 
+                        // If this is an amendment, finalize it
+                        if ($record->amendment_number > 0) {
+                            $pendingAmendment = $record->amendments()
+                                ->where('status', 'pending')
+                                ->latest()
+                                ->first();
+
+                            if ($pendingAmendment) {
+                                app(\App\Services\AmendmentService::class)
+                                    ->finalizeAmendment($pendingAmendment, $user->id);
+                            }
+                        }
+
                         event(new \App\Events\PurchaseOrderApproved($record, $user));
 
                         Notification::make()
                             ->title('อนุมัติเรียบร้อย')
-                            ->body("อนุมัติ {$record->po_number} แล้ว")
+                            ->body("อนุมัติ {$record->po_number} แล้ว" .
+                                ($record->amendment_number > 0 ? " (แก้ไขครั้งที่ {$record->amendment_number})" : ''))
                             ->success()
                             ->send();
                     }),
@@ -824,6 +839,56 @@ class PurchaseOrderResource extends Resource
                             ->body('ใบสั่งซื้อถูกส่งเพื่อขออนุมัติเรียบร้อย')
                             ->success()
                             ->send();
+                    }),
+
+                // Request Amendment (approved PO onwards)
+                Tables\Actions\Action::make('requestAmendment')
+                    ->label('ขอแก้ไข PO')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('warning')
+                    ->visible(fn ($record) =>
+                        $record->canRequestAmendment() &&
+                        auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager']))
+                    ->requiresConfirmation()
+                    ->modalHeading(fn ($record) => "ขอแก้ไข {$record->po_number}")
+                    ->modalDescription('ระบบจะสร้าง VA Revision เพื่อให้คุณแก้ไขรายละเอียดก่อนส่งอนุมัติ PO ใหม่')
+                    ->form([
+                        \Filament\Forms\Components\Select::make('amendment_type')
+                            ->label('ประเภทการแก้ไข')
+                            ->options(\App\Models\ValueAnalysis::AMENDMENT_TYPES)
+                            ->required()
+                            ->native(false),
+                        \Filament\Forms\Components\Textarea::make('amendment_reason')
+                            ->label('เหตุผลที่ต้องแก้ไข')
+                            ->required()
+                            ->rows(3),
+                    ])
+                    ->action(function ($record, array $data) {
+                        try {
+                            $service = app(\App\Services\AmendmentService::class);
+                            $vaRevision = $service->createVaRevisionFromPo(
+                                $record,
+                                $data['amendment_type'],
+                                $data['amendment_reason'],
+                                auth()->id()
+                            );
+
+                            Notification::make()
+                                ->title('สร้าง VA Revision สำเร็จ')
+                                ->body('VA ' . $vaRevision->va_number . ' (Rev.' . $vaRevision->revision_number . ') ถูกสร้างแล้ว กรุณาแก้ไขและส่งอนุมัติ')
+                                ->success()
+                                ->send();
+
+                            return redirect()->to(
+                                \App\Filament\Resources\ValueAnalysisResource::getUrl('edit', ['record' => $vaRevision])
+                            );
+                        } catch (\RuntimeException $e) {
+                            Notification::make()
+                                ->title('ไม่สามารถสร้าง VA Revision ได้')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
                     }),
             ])
             ->bulkActions([

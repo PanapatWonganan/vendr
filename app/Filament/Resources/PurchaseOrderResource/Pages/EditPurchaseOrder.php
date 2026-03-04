@@ -3,7 +3,9 @@
 namespace App\Filament\Resources\PurchaseOrderResource\Pages;
 
 use App\Filament\Resources\PurchaseOrderResource;
+use App\Services\AmendmentService;
 use Filament\Actions;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -42,16 +44,29 @@ class EditPurchaseOrder extends EditRecord
                         'approved_by' => $user->id,
                         'approved_at' => now(),
                     ]);
-                    
+
+                    // If this is an amendment, finalize it (update GR prices, milestones)
+                    if ($record->amendment_number > 0) {
+                        $pendingAmendment = $record->amendments()
+                            ->where('status', 'pending')
+                            ->latest()
+                            ->first();
+
+                        if ($pendingAmendment) {
+                            app(AmendmentService::class)->finalizeAmendment($pendingAmendment, $user->id);
+                        }
+                    }
+
                     // Fire event for email notifications
                     event(new \App\Events\PurchaseOrderApproved($record, $user));
-                    
-                    \Filament\Notifications\Notification::make()
+
+                    Notification::make()
                         ->title('อนุมัติเรียบร้อย')
-                        ->body('ได้อนุมัติ PO ' . $record->po_number . ' เรียบร้อยแล้ว')
+                        ->body('ได้อนุมัติ PO ' . $record->po_number . ' เรียบร้อยแล้ว' .
+                            ($record->amendment_number > 0 ? ' (แก้ไขครั้งที่ ' . $record->amendment_number . ')' : ''))
                         ->success()
                         ->send();
-                        
+
                     return redirect()->to('/admin/purchase-orders/pending-approvals');
                 });
             

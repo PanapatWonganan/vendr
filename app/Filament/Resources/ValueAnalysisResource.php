@@ -32,6 +32,32 @@ class ValueAnalysisResource extends Resource
     {
         return $form
             ->schema([
+                Forms\Components\Section::make('ข้อมูลการแก้ไข (Amendment)')
+                    ->schema([
+                        Forms\Components\Placeholder::make('revision_info')
+                            ->label('Revision')
+                            ->content(fn ($record) => $record?->isRevision()
+                                ? 'Rev.' . $record->revision_number . ' (แก้ไขจาก ' . ($record->parentVa?->va_number ?? '-') . ')'
+                                : 'ต้นฉบับ'),
+                        Forms\Components\Select::make('amendment_type')
+                            ->label('ประเภทการแก้ไข')
+                            ->options(\App\Models\ValueAnalysis::AMENDMENT_TYPES)
+                            ->required()
+                            ->native(false),
+                        Forms\Components\Textarea::make('amendment_reason')
+                            ->label('เหตุผลการแก้ไข')
+                            ->required()
+                            ->rows(3)
+                            ->columnSpanFull(),
+                        Forms\Components\Hidden::make('parent_va_id'),
+                        Forms\Components\Hidden::make('revision_number'),
+                    ])
+                    ->visible(fn ($record, $operation) =>
+                        ($operation === 'edit' && $record?->isRevision()) ||
+                        ($operation === 'create' && request()->filled('parent_va_id'))
+                    )
+                    ->collapsible(),
+
                 Forms\Components\Section::make('ข้อมูลหลัก')
                     ->schema([
                         Forms\Components\Grid::make(2)->schema([
@@ -197,11 +223,17 @@ class ValueAnalysisResource extends Resource
                 Tables\Columns\TextColumn::make('va_number')
                     ->label('VA Number')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->description(fn ($record) => $record->revision_label),
                 Tables\Columns\TextColumn::make('purchaseRequisition.title')
                     ->label('Purchase Requisition')
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('amendment_type')
+                    ->label('ประเภทแก้ไข')
+                    ->getStateUsing(fn ($record) => $record->amendment_type_label)
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('work_type')
                     ->label('Work Type')
                     ->searchable(),
@@ -224,6 +256,12 @@ class ValueAnalysisResource extends Resource
                     })
                     ->color(fn ($state) => $state !== 'N/A' && floatval($state) > 0 ? 'success' : 'gray')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('revision_number')
+                    ->label('Rev.')
+                    ->getStateUsing(fn ($record) => $record->isRevision() ? 'Rev.' . $record->revision_number : '-')
+                    ->badge()
+                    ->color(fn ($record) => $record->isRevision() ? 'info' : 'gray')
+                    ->toggleable(),
                 Tables\Columns\BadgeColumn::make('status')
                     ->colors([
                         'secondary' => 'draft',
