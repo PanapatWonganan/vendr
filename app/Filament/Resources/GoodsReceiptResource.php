@@ -188,22 +188,12 @@ class GoodsReceiptResource extends Resource
                             ->label('หมายเหตุการตรวจสอบ')
                             ->rows(3),
                     ])->columns(2),
-                    
-                Forms\Components\Section::make('เอกสารแนบ')
-                    ->schema([
-                        Forms\Components\FileUpload::make('temp_attachments')
-                            ->label('อัปโหลดไฟล์แนบ')
-                            ->multiple()
-                            ->directory('goods-receipts')
-                            ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png', 'image/jpg', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
-                            ->maxSize(10240) // 10MB
-                            ->downloadable()
-                            ->openable()
-                            ->previewable()
-                            ->helperText('รองรับไฟล์ PDF, รูปภาพ (JPG, PNG), Word, Excel ขนาดสูงสุด 10MB ต่อไฟล์')
-                            ->storeFileNamesIn('attachment_files'),
-                    ])
-                    ->description('สามารถอัปโหลดหลายไฟล์พร้อมกัน'),
+
+                // NOTE: File attachments are managed exclusively via the
+                // AttachmentsRelationManager (the "เอกสารแนบ" table below
+                // the form). The previous inline FileUpload here did not
+                // persist GoodsReceiptAttachment records on edit, causing
+                // files to vanish after refresh.
             ]);
     }
 
