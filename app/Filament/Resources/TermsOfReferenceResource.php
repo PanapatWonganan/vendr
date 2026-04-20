@@ -376,21 +376,12 @@ class TermsOfReferenceResource extends Resource
                                     ->placeholder('เลือกคณะกรรมการตรวจรับ'),
                             ]),
 
-                            Forms\Components\FileUpload::make('attachments_upload')
-                                ->label('เอกสารแนบ')
-                                ->multiple()
-                                ->directory('tor-attachments')
-                                ->maxSize(10240)
-                                ->acceptedFileTypes([
-                                    'application/pdf',
-                                    'image/*',
-                                    'application/msword',
-                                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                                    'application/vnd.ms-excel',
-                                    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                                ])
-                                ->columnSpanFull()
-                                ->dehydrated(false),
+                            // NOTE: Inline file upload removed to prevent orphaned files.
+                            // The previous FileUpload used ->dehydrated(false) and had no
+                            // after-create/save handler, so uploaded files were never linked
+                            // to a TermsOfReference record (storage disk leak + files vanished
+                            // from UI on refresh). Use the ProcurementAttachment polymorphic
+                            // relationship or a dedicated attachments relation manager instead.
                         ]),
                 ])
                 ->columnSpanFull()
