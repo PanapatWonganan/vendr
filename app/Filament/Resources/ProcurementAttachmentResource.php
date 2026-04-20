@@ -57,6 +57,7 @@ class ProcurementAttachmentResource extends Resource
 
                 Forms\Components\FileUpload::make('file_path')
                     ->label('File')
+                    ->disk('public')
                     ->directory('procurement-attachments')
                     ->storeFileNamesIn('file_name')
                     ->acceptedFileTypes([
@@ -69,6 +70,9 @@ class ProcurementAttachmentResource extends Resource
                         'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                     ])
                     ->maxSize(10240) // 10MB
+                    ->downloadable()
+                    ->openable()
+                    ->previewable()
                     ->required(),
 
                 Forms\Components\TextInput::make('original_name')
