@@ -70,4 +70,12 @@ class SendGoodsReceiptCreatedNotification implements ShouldQueue
             ]);
         }
     }
+
+    public function failed(GoodsReceiptCreated $event, \Throwable $exception): void
+    {
+        \Log::error('GR created notification job failed permanently', [
+            'goods_receipt_id' => $event->goodsReceiptId,
+            'error' => $exception->getMessage(),
+        ]);
+    }
 }

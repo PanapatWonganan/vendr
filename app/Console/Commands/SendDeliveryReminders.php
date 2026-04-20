@@ -41,7 +41,7 @@ class SendDeliveryReminders extends Command
 
             $purchaseOrders = PurchaseOrder::whereBetween('expected_delivery_date', [$targetDate, $targetDateEnd])
                 ->whereIn('status', ['approved', 'in_progress'])
-                ->with(['vendor', 'company', 'purchaseRequisition.user'])
+                ->with(['vendor', 'company', 'purchaseRequisition.requester'])
                 ->get();
 
             foreach ($purchaseOrders as $po) {
@@ -54,7 +54,7 @@ class SendDeliveryReminders extends Command
         // Check for overdue POs
         $overduePOs = PurchaseOrder::where('expected_delivery_date', '<', Carbon::now()->startOfDay())
             ->whereIn('status', ['approved', 'in_progress'])
-            ->with(['vendor', 'company', 'purchaseRequisition.user'])
+            ->with(['vendor', 'company', 'purchaseRequisition.requester'])
             ->get();
 
         foreach ($overduePOs as $po) {
@@ -73,8 +73,8 @@ class SendDeliveryReminders extends Command
         $recipients = collect();
 
         // Add PR creator
-        if ($po->purchaseRequisition && $po->purchaseRequisition->user) {
-            $recipients->push($po->purchaseRequisition->user);
+        if ($po->purchaseRequisition && $po->purchaseRequisition->requester) {
+            $recipients->push($po->purchaseRequisition->requester);
         }
 
         // Add procurement team - simplified query
@@ -92,7 +92,7 @@ class SendDeliveryReminders extends Command
 
         // If no recipients found, try to send to admin
         if ($recipients->isEmpty()) {
-            $adminUser = User::where('email', 'admin@innobic.com')->first();
+            $adminUser = User::where('email', config('services.procurement.fallback_admin_email'))->first();
             if ($adminUser) {
                 $recipients->push($adminUser);
             }

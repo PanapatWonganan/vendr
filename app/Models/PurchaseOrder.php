@@ -11,6 +11,31 @@ class PurchaseOrder extends BaseModel
 {
     use HasFactory, SoftDeletes;
 
+    // Status constants
+    const STATUS_DRAFT = 'draft';
+    const STATUS_PENDING_APPROVAL = 'pending_approval';
+    const STATUS_APPROVED = 'approved';
+    const STATUS_REJECTED = 'rejected';
+    const STATUS_SENT_TO_SUPPLIER = 'sent_to_supplier';
+    const STATUS_ACKNOWLEDGED = 'acknowledged';
+    const STATUS_PARTIALLY_RECEIVED = 'partially_received';
+    const STATUS_FULLY_RECEIVED = 'fully_received';
+    const STATUS_CLOSED = 'closed';
+    const STATUS_CANCELLED = 'cancelled';
+
+    const STATUSES = [
+        self::STATUS_DRAFT,
+        self::STATUS_PENDING_APPROVAL,
+        self::STATUS_APPROVED,
+        self::STATUS_REJECTED,
+        self::STATUS_SENT_TO_SUPPLIER,
+        self::STATUS_ACKNOWLEDGED,
+        self::STATUS_PARTIALLY_RECEIVED,
+        self::STATUS_FULLY_RECEIVED,
+        self::STATUS_CLOSED,
+        self::STATUS_CANCELLED,
+    ];
+
     protected $fillable = [
         'company_id',
         'pr_id',
@@ -125,12 +150,9 @@ class PurchaseOrder extends BaseModel
 
     public function purchaseRequisition(): BelongsTo
     {
-        return $this->belongsTo(PurchaseRequisition::class);
-    }
-
-    public function purchaseRequisitionByPrId(): BelongsTo
-    {
-        return $this->belongsTo(PurchaseRequisition::class, 'pr_id');
+        // Prefer purchase_requisition_id, fall back to pr_id (legacy column)
+        $fk = $this->purchase_requisition_id ? 'purchase_requisition_id' : 'pr_id';
+        return $this->belongsTo(PurchaseRequisition::class, $fk);
     }
 
     public function vendor(): BelongsTo
@@ -201,14 +223,17 @@ class PurchaseOrder extends BaseModel
         $month = date('m');
         $day = date('d');
         $prefix = "PO-{$year}{$month}{$day}";
-        $companyId = session('company_id', 1);
-        
-        // Try to generate unique number with retries
-        $maxRetries = 10;
-        for ($i = 0; $i < $maxRetries; $i++) {
+        $companyId = session('company_id');
+
+        if (!$companyId) {
+            throw new \RuntimeException('Cannot generate PO number without company context.');
+        }
+
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($prefix, $companyId) {
             $lastPo = static::where('po_number', 'like', "{$prefix}%")
                 ->where('company_id', $companyId)
                 ->orderBy('po_number', 'desc')
+                ->lockForUpdate()
                 ->first();
 
             if ($lastPo) {
@@ -218,23 +243,8 @@ class PurchaseOrder extends BaseModel
                 $newNumber = 1;
             }
 
-            $poNumber = $prefix . '-' . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
-            
-            // Check if this PO number already exists for this company
-            $exists = static::where('po_number', $poNumber)
-                ->where('company_id', $companyId)
-                ->exists();
-                
-            if (!$exists) {
-                return $poNumber;
-            }
-            
-            // If exists, wait a bit and try again
-            usleep(100000); // 0.1 second
-        }
-        
-        // If all retries failed, use timestamp suffix
-        return $prefix . '-' . str_pad(time() % 10000, 4, '0', STR_PAD_LEFT);
+            return $prefix . '-' . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+        });
     }
 
     public function getStatusTextAttribute(): string

@@ -28,6 +28,6 @@ class GoodsReceiptCreated
         // Use provided connection name or detect from model
         $this->connectionName = $connectionName ?? $goodsReceipt->getConnection()->getName();
         
-        $this->companyId = $goodsReceipt->company_id ?? session('company_id', 1);
+        $this->companyId = $goodsReceipt->company_id ?? session('company_id');
     }
 }

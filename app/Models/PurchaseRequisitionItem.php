@@ -54,8 +54,9 @@ class PurchaseRequisitionItem extends Model
         parent::boot();
         
         static::creating(function ($item) {
-            if (is_null($item->line_number)) {
-                $item->line_number = $item->purchaseRequisition->items()->count() + 1;
+            if (is_null($item->line_number) && $item->purchase_requisition_id) {
+                $pr = $item->purchaseRequisition;
+                $item->line_number = $pr ? $pr->items()->count() + 1 : 1;
             }
         });
     }

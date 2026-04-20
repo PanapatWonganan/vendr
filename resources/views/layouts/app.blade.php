@@ -646,7 +646,7 @@
                             <i class="fas fa-chart-pie"></i> แดชบอร์ด
                         </a>
                     </li>
-                    @if(auth()->user()->roles->contains('name', 'admin'))
+                    @if(auth()->user()->hasRole('admin'))
                     <li>
                         <a href="{{ route('filament.admin.resources.users.index') }}" class="{{ request()->routeIs('filament.admin.resources.users.*') ? 'active' : '' }}">
                             <i class="fas fa-users"></i> จัดการพนักงาน
@@ -811,7 +811,7 @@
                                     @endforeach
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
-                                        <a class="dropdown-item text-secondary" href="{{ route('company.select') }}">
+                                        <a class="dropdown-item text-secondary" href="/admin/company-select">
                                             <i class="fas fa-cog me-2"></i>
                                             จัดการบริษัท
                                         </a>

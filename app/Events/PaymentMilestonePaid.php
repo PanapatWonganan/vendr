@@ -28,6 +28,6 @@ class PaymentMilestonePaid
         // Use provided connection name or detect from model
         $this->connectionName = $connectionName ?? $paymentMilestone->getConnection()->getName();
         
-        $this->companyId = $paymentMilestone->company_id ?? session('company_id', 1);
+        $this->companyId = $paymentMilestone->company_id ?? session('company_id');
     }
 }

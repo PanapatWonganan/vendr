@@ -28,6 +28,6 @@ class PurchaseOrderApproved
         // Use provided connection name or detect from model
         $this->connectionName = $connectionName ?? $purchaseOrder->getConnection()->getName();
         
-        $this->companyId = $purchaseOrder->company_id ?? session('company_id', 1);
+        $this->companyId = $purchaseOrder->company_id ?? session('company_id');
     }
 } 

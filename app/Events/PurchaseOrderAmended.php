@@ -28,6 +28,6 @@ class PurchaseOrderAmended
         $this->approverId = $approver->id;
         $this->amendmentId = $amendment->id;
         $this->connectionName = $purchaseOrder->getConnection()->getName();
-        $this->companyId = $purchaseOrder->company_id ?? session('company_id', 1);
+        $this->companyId = $purchaseOrder->company_id ?? session('company_id');
     }
 }

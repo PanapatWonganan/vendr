@@ -85,4 +85,15 @@ class SendGoodsReceiptNotification implements ShouldQueue
             throw $e; // Re-throw so it can be retried
         }
     }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(GoodsReceiptCreated $event, \Throwable $exception): void
+    {
+        Log::error('GR Notification job failed permanently', [
+            'gr_id' => $event->goodsReceiptId,
+            'error' => $exception->getMessage(),
+        ]);
+    }
 }

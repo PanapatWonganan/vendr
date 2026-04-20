@@ -2,50 +2,67 @@
 
 namespace App\Http\Middleware;
 
+use App\Filament\Pages\CompanySelect;
 use App\Models\BaseModel;
 use App\Models\Company;
 use Closure;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\Response;
 
 class CompanyMiddleware
 {
     /**
      * Handle an incoming request.
+     * ใช้ middleware ตัวนี้ตัวเดียวทั้ง web routes และ Filament panel.
      *
      * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
-        // ถ้าเป็นหน้า company selection ให้ผ่านไป
-        if ($request->routeIs('company.select') || $request->routeIs('company.set')) {
+        // Allow login / logout routes to pass through
+        if ($request->routeIs('filament.admin.auth.login') ||
+            $request->is('admin/login*') ||
+            $request->is('admin/logout*')) {
             return $next($request);
         }
 
+        // Allow Filament company selection page to pass through
+        if ($request->is('admin/company-select')) {
+            return $next($request);
+        }
+
+        $companyId = session('company_id');
+        $companyConnection = session('company_connection');
+
         // ตรวจสอบว่า user ได้เลือก company แล้วหรือยัง
-        if (!session('company_id') || !session('company_connection')) {
-            // Redirect to company selection page เสมอ
-            return redirect()->route('company.select');
+        if (!$companyId || !$companyConnection) {
+            return redirect()->to(CompanySelect::getUrl());
         }
 
-        // ตรวจสอบว่า company ยังมีอยู่และ active หรือไม่
-        $company = Company::find(session('company_id'));
-        if (!$company || !$company->isActive()) {
-            // ถ้า company ไม่มีหรือไม่ active ให้ clear session และ redirect
-            session()->forget(['company_id', 'company_connection', 'company_name']);
-            return redirect()->route('company.select');
+        // Validate company still exists and is active (cached 60s)
+        $isActive = Cache::remember("company_active_{$companyId}", 60, function () use ($companyId) {
+            return Company::where('id', $companyId)
+                ->where('is_active', true)
+                ->exists();
+        });
+
+        if (!$isActive) {
+            session()->forget(['company_id', 'company_connection', 'company_name', 'company_display_name']);
+            Cache::forget("company_active_{$companyId}");
+            return redirect()->to(CompanySelect::getUrl())
+                ->with('error', 'บริษัทที่เลือกไม่สามารถใช้งานได้แล้ว กรุณาเลือกบริษัทใหม่');
         }
 
-        // Set database connection สำหรับ request นี้ (ใช้ single database)
+        // Set database connection สำหรับ request นี้
         BaseModel::setCompanyConnection('mysql');
 
-        // เพิ่มข้อมูล company ใน request เพื่อใช้ใน view
-        $request->merge([
-            'current_company' => $company
-        ]);
-
         // Share company info กับ views
-        view()->share('currentCompany', $company);
+        $company = Company::find($companyId);
+        if ($company) {
+            $request->merge(['current_company' => $company]);
+            view()->share('currentCompany', $company);
+        }
 
         return $next($request);
     }

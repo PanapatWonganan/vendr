@@ -7,14 +7,17 @@ use App\Mail\PurchaseOrderApprovedMail;
 use App\Models\Company;
 use App\Services\PurchaseOrderPdfService;
 use App\Services\DeliveryNotePdfService;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-class SendPurchaseOrderApprovedNotification
+class SendPurchaseOrderApprovedNotification implements ShouldQueue
 {
+    use InteractsWithQueue;
     /**
      * Handle the event.
      */
@@ -319,5 +322,13 @@ class SendPurchaseOrderApprovedNotification
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    public function failed(PurchaseOrderApproved $event, \Throwable $exception): void
+    {
+        Log::error('PO approved notification job failed permanently', [
+            'po_id' => $event->purchaseOrderId,
+            'error' => $exception->getMessage(),
+        ]);
     }
 }

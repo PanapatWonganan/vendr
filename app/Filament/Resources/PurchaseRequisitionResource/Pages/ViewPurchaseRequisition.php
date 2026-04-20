@@ -95,7 +95,7 @@ class ViewPurchaseRequisition extends ViewRecord
                     $this->record->update([
                         'status' => 'rejected',
                         'rejected_by' => Auth::id(),
-                        'rejected_date' => now(),
+                        'rejected_at' => now(),
                         'rejection_reason' => $data['rejection_reason'],
                     ]);
                     event(new PurchaseRequisitionRejected($this->record, Auth::user()));

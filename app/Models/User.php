@@ -17,9 +17,17 @@ class User extends Authenticatable implements FilamentUser
     use HasFactory, Notifiable;
 
     /**
-     * Use default database connection (shared across all companies)
+     * Use default database connection (shared across all companies).
+     * Not hardcoded so tests can use sqlite in-memory.
      */
-    protected $connection = 'mysql';
+    public function getConnectionName()
+    {
+        if (app()->runningUnitTests()) {
+            return config('database.default');
+        }
+
+        return 'mysql';
+    }
 
     /**
      * The attributes that are mass assignable.
@@ -103,7 +111,10 @@ class User extends Authenticatable implements FilamentUser
         return $this->roles()
             ->wherePivot('is_active', true)
             ->where('roles.is_active', true)
-            ->whereRaw('(role_user.expires_at IS NULL OR role_user.expires_at > NOW())');
+            ->where(function ($query) {
+                $query->whereNull('role_user.expires_at')
+                      ->orWhere('role_user.expires_at', '>', now());
+            });
     }
 
     /**

@@ -79,15 +79,22 @@ return new class extends Migration
      */
     private function foreignKeyExists($table, $keyName)
     {
+        $driver = Schema::getConnection()->getDriverName();
+
+        if ($driver === 'sqlite') {
+            // SQLite doesn't enforce foreign keys the same way; safe to skip the check
+            return false;
+        }
+
         $constraints = DB::select("
-            SELECT CONSTRAINT_NAME 
-            FROM information_schema.TABLE_CONSTRAINTS 
-            WHERE TABLE_SCHEMA = DATABASE() 
-            AND TABLE_NAME = ? 
+            SELECT CONSTRAINT_NAME
+            FROM information_schema.TABLE_CONSTRAINTS
+            WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = ?
             AND CONSTRAINT_TYPE = 'FOREIGN KEY'
             AND CONSTRAINT_NAME = ?
         ", [$table, $keyName]);
-        
+
         return count($constraints) > 0;
     }
 };

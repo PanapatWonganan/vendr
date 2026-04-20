@@ -8,7 +8,7 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Form;
 use Filament\Actions\Action;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
+
 
 class CompanySelect extends Page
 {
@@ -58,21 +58,30 @@ class CompanySelect extends Page
 
         $company = Company::find($data['company_id']);
 
-        if (!$company || !$company->is_active) {
+        if (!$company || !$company->isActive()) {
             $this->addError('company_id', 'บริษัทที่เลือกไม่พร้อมใช้งาน');
             return;
         }
 
-        // Set session data (ใช้ single database)
+        // Set session data — consistent keys ทุกจุด
         session([
             'company_id' => $company->id,
-            'company_name' => $company->name,
-            'company_connection' => 'mysql', // ใช้ default connection
+            'company_name' => $company->display_name,
+            'company_connection' => 'mysql',
             'company_display_name' => $company->display_name,
         ]);
 
         // Redirect to admin dashboard
         $this->redirect('/admin');
+    }
+
+    public function logout(): void
+    {
+        Auth::guard('web')->logout();
+        session()->invalidate();
+        session()->regenerateToken();
+
+        $this->redirect(filament()->getLoginUrl());
     }
 
     protected function getFormActions(): array

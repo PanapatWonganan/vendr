@@ -718,16 +718,15 @@ class PurchaseOrderResource extends Resource
                         $user = auth()->user();
                         return $query->where('status', 'pending_approval')
                             ->where(function ($query) use ($user) {
-                                $query->where('po_approver_id', $user->id)
-                                    ->orWhere(function ($query) use ($user) {
-                                        if ($user->hasRole('admin') || $user->hasRole('procurement_manager')) {
-                                            return $query;
-                                        }
-                                        if ($user->hasRole('department_head') && $user->department_id) {
-                                            return $query->where('department_id', $user->department_id);
-                                        }
-                                        return $query->whereNull('id');
-                                    });
+                                if ($user->hasRole('admin') || $user->hasRole('procurement_manager')) {
+                                    // Admin/PM เห็น PO pending ทั้งหมด
+                                    return $query;
+                                }
+                                if ($user->hasRole('department_head') && $user->department_id) {
+                                    return $query->where('department_id', $user->department_id);
+                                }
+                                // Fallback: ไม่เห็นอะไรเลย
+                                return $query->whereNull('id');
                             });
                     })
                     ->visible(fn () => auth()->user()->hasAnyRole(['admin', 'procurement_manager', 'department_head'])),
@@ -758,7 +757,9 @@ class PurchaseOrderResource extends Resource
                             'status' => 'approved',
                             'approved_by' => $user->id,
                             'approved_at' => now(),
-                            'approval_notes' => $data['approval_notes'] ?? null,
+                            'notes' => $data['approval_notes']
+                                ? ($record->notes ? $record->notes . "\n\n[อนุมัติ] " . $data['approval_notes'] : '[อนุมัติ] ' . $data['approval_notes'])
+                                : $record->notes,
                         ]);
 
                         // If this is an amendment, finalize it
@@ -807,7 +808,7 @@ class PurchaseOrderResource extends Resource
                             'status' => 'rejected',
                             'rejected_by' => $user->id,
                             'rejected_at' => now(),
-                            'rejection_notes' => $data['rejection_notes'],
+                            'rejection_reason' => $data['rejection_notes'],
                         ]);
 
                         event(new \App\Events\PurchaseOrderRejected($record, $user));

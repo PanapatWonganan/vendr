@@ -11,7 +11,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+
 use Illuminate\Support\Facades\Storage;
 
 class PurchaseOrderController extends Controller
@@ -163,14 +163,9 @@ class PurchaseOrderController extends Controller
      */
     public function store(Request $request)
     {
-        // Check if database has new fields for dynamic validation
-        $hasNewFields = Schema::hasColumn('purchase_orders', 'vendor_id') && 
-                       Schema::hasColumn('purchase_orders', 'sap_po_number') && 
-                       Schema::hasColumn('purchase_orders', 'work_type');
-
-        // Basic validation rules
-        $rules = [
-            'purchase_requisition_id' => 'nullable|exists:purchase_requisitions,id',
+        // Validation rules
+        $validated = $request->validate([
+            'purchase_requisition_id' => 'nullable|exists:purchase_requisitions,id,company_id,' . session('company_id'),
             'po_title' => 'required|string|max:255',
             'vendor_name' => 'nullable|string|max:255',
             'total_amount' => 'required|numeric|min:0',
@@ -184,33 +179,19 @@ class PurchaseOrderController extends Controller
             'po_files.*' => 'required|file|mimes:pdf,jpg,jpeg,png|max:10240', // 10MB max
             'file_descriptions.*' => 'nullable|string|max:255',
             'file_categories.*' => 'required|in:po_document,quotation,specification,attachment,other',
-        ];
-
-        // Add conditional validation for new fields
-        if ($hasNewFields) {
-            // Always make vendor_id nullable to avoid foreign key issues
-            // We'll validate vendor existence in the logic instead
-            $rules = array_merge($rules, [
-                'sap_po_number' => 'nullable|string|max:255',
-                'work_type' => 'required|in:buy,hire,rent',
-                'procurement_method' => 'nullable|in:agreement_price,invitation_bid,open_bid,special_1,special_2,selection',
-                'vendor_id' => 'nullable', // Always nullable
-                'contact_name' => 'required|string|max:255',
-                'contact_email' => 'required|email|max:255',
-                'stamp_duty' => 'nullable|numeric|min:0',
-                'delivery_schedule' => 'nullable|string',
-                'payment_schedule' => 'nullable|string',
-                'payment_terms' => 'nullable|string',
-                'operation_duration' => 'nullable|string',
-            ]);
-        } else {
-            // Fallback validation for older schema
-            $rules = array_merge($rules, [
-                'contact_email' => 'required|email|max:255',
-            ]);
-        }
-
-        $validated = $request->validate($rules);
+            // Extended fields
+            'sap_po_number' => 'nullable|string|max:255',
+            'work_type' => 'required|in:buy,hire,rent',
+            'procurement_method' => 'nullable|in:agreement_price,invitation_bid,open_bid,special_1,special_2,selection',
+            'vendor_id' => 'nullable',
+            'contact_name' => 'required|string|max:255',
+            'contact_email' => 'required|email|max:255',
+            'stamp_duty' => 'nullable|numeric|min:0',
+            'delivery_schedule' => 'nullable|string',
+            'payment_schedule' => 'nullable|string',
+            'payment_terms' => 'nullable|string',
+            'operation_duration' => 'nullable|string',
+        ]);
 
         DB::beginTransaction();
 
@@ -221,11 +202,6 @@ class PurchaseOrderController extends Controller
             // Get the correct user ID for current company database
             $currentUserId = $this->getCurrentUserId();
 
-            // Check if database has new columns by actually checking schema
-            $hasNewFields = Schema::hasColumn('purchase_orders', 'vendor_id') && 
-                           Schema::hasColumn('purchase_orders', 'sap_po_number') && 
-                           Schema::hasColumn('purchase_orders', 'work_type');
-
             // Get PR data if creating from PR
             $purchaseRequisition = null;
             if ($validated['purchase_requisition_id']) {
@@ -233,8 +209,12 @@ class PurchaseOrderController extends Controller
             }
 
             // Create purchase order with basic data first
+            $companyId = session('company_id');
+            if (!$companyId) {
+                abort(403, 'กรุณาเลือกบริษัทก่อน');
+            }
             $poData = [
-                'company_id' => session('company_id', 1),
+                'company_id' => $companyId,
                 'po_number' => $poNumber,
                 'po_title' => $validated['po_title'],
                 'vendor_name' => $validated['vendor_name'],
@@ -248,50 +228,35 @@ class PurchaseOrderController extends Controller
                 'status' => 'draft',
             ];
 
-            // Add pr_id if column exists
-            if (Schema::hasColumn('purchase_orders', 'pr_id')) {
-                $poData['pr_id'] = $validated['purchase_requisition_id'];
+            $poData['pr_id'] = $validated['purchase_requisition_id'];
+
+            // Validate vendor exists in current company before assigning
+            $actualVendorExists = false;
+            if (!empty($validated['vendor_id'])) {
+                $currentConnection = session('company_connection', 'mysql');
+                $actualVendorExists = DB::connection($currentConnection)
+                    ->table('vendors')
+                    ->where('id', $validated['vendor_id'])
+                    ->where('company_id', $companyId)
+                    ->exists();
             }
 
-            // Add new fields only if database supports them
-            if ($hasNewFields) {
-                // Check if vendors actually exist in current database connection
-                $actualVendorExists = false;
-                if (!empty($validated['vendor_id'])) {
-                    // Use the current company's database connection
-                    $currentConnection = session('company_connection', 'mysql');
-                    $actualVendorExists = DB::connection($currentConnection)
-                        ->table('vendors')
-                        ->where('id', $validated['vendor_id'])
-                        ->where('company_id', session('company_id', 1))
-                        ->exists();
-                }
-                
-                $poData['vendor_id'] = $actualVendorExists ? $validated['vendor_id'] : null;
-                $poData['contact_name'] = $validated['contact_name'] ?? null;
-                $poData['contact_email'] = $validated['contact_email'];
-                $poData['sap_po_number'] = $validated['sap_po_number'] ?? null;
-                $poData['work_type'] = $validated['work_type'];
-                $poData['procurement_method'] = $validated['procurement_method'] ?? null;
-                $poData['stamp_duty'] = $validated['stamp_duty'] ?? null;
-                $poData['delivery_schedule'] = $validated['delivery_schedule'] ?? null;
-                $poData['payment_schedule'] = $validated['payment_schedule'] ?? null;
-                $poData['payment_terms'] = $validated['payment_terms'] ?? null;
-                $poData['operation_duration'] = $validated['operation_duration'] ?? null;
-            } else {
-                // Fallback for older schema
-                $poData['vendor_contact'] = $validated['contact_email'];
-                $poData['description'] = $validated['notes'] ?? 'PO created from PR';
-            }
+            $poData['vendor_id'] = $actualVendorExists ? $validated['vendor_id'] : null;
+            $poData['contact_name'] = $validated['contact_name'] ?? null;
+            $poData['contact_email'] = $validated['contact_email'];
+            $poData['sap_po_number'] = $validated['sap_po_number'] ?? null;
+            $poData['work_type'] = $validated['work_type'];
+            $poData['procurement_method'] = $validated['procurement_method'] ?? null;
+            $poData['stamp_duty'] = $validated['stamp_duty'] ?? null;
+            $poData['delivery_schedule'] = $validated['delivery_schedule'] ?? null;
+            $poData['payment_schedule'] = $validated['payment_schedule'] ?? null;
+            $poData['payment_terms'] = $validated['payment_terms'] ?? null;
+            $poData['operation_duration'] = $validated['operation_duration'] ?? null;
 
-            // Add department_id (should exist in all schemas)
+            // Add department and inspection committee
             if ($purchaseRequisition) {
                 $poData['department_id'] = $purchaseRequisition->department_id;
-                
-                // Add inspection_committee_id only if column exists
-                if (Schema::hasColumn('purchase_orders', 'inspection_committee_id')) {
-                    $poData['inspection_committee_id'] = $purchaseRequisition->inspection_committee_id;
-                }
+                $poData['inspection_committee_id'] = $purchaseRequisition->inspection_committee_id;
             } else {
                 $poData['department_id'] = Auth::user()->department_id ?? 1;
             }
@@ -377,12 +342,8 @@ class PurchaseOrderController extends Controller
                 ->with('error', 'ไม่สามารถแก้ไข PO ที่อยู่ในสถานะนี้ได้');
         }
 
-        // Check if database has new fields for dynamic validation
-        $hasNewFields = Schema::hasColumn('purchase_orders', 'vendor_id') && 
-                       Schema::hasColumn('purchase_orders', 'sap_po_number');
-
-        // Basic validation rules for update
-        $rules = [
+        // Validation rules for update
+        $validated = $request->validate([
             'po_title' => 'required|string|max:255',
             'vendor_name' => 'nullable|string|max:255',
             'total_amount' => 'required|numeric|min:0',
@@ -395,24 +356,12 @@ class PurchaseOrderController extends Controller
             'po_files.*' => 'nullable|file|mimes:pdf,jpg,jpeg,png|max:10240',
             'file_descriptions.*' => 'nullable|string|max:255',
             'file_categories.*' => 'nullable|in:po_document,quotation,specification,attachment,other',
-        ];
-
-        // Add conditional validation for new fields
-        if ($hasNewFields) {
-            $rules = array_merge($rules, [
-                'vendor_id' => 'nullable', // Always nullable to avoid foreign key issues
-                'sap_po_number' => 'nullable|string|max:255',
-                'contact_name' => 'required|string|max:255',
-                'contact_email' => 'required|email|max:255',
-            ]);
-        } else {
-            // Fallback validation for older schema
-            $rules = array_merge($rules, [
-                'contact_email' => 'required|email|max:255',
-            ]);
-        }
-
-        $validated = $request->validate($rules);
+            // Extended fields
+            'vendor_id' => 'nullable',
+            'sap_po_number' => 'nullable|string|max:255',
+            'contact_name' => 'required|string|max:255',
+            'contact_email' => 'required|email|max:255',
+        ]);
 
         DB::beginTransaction();
 
@@ -427,32 +376,27 @@ class PurchaseOrderController extends Controller
                 'notes' => $validated['notes'],
             ];
 
-            // Add new fields only if they exist in database schema
-            if (Schema::hasColumn('purchase_orders', 'vendor_id')) {
-                // Validate vendor exists before assigning
-                $actualVendorExists = false;
-                if (!empty($validated['vendor_id'])) {
-                    // Use the current company's database connection
-                    $currentConnection = session('company_connection', 'mysql');
-                    $actualVendorExists = DB::connection($currentConnection)
-                        ->table('vendors')
-                        ->where('id', $validated['vendor_id'])
-                        ->where('company_id', session('company_id', 1))
-                        ->exists();
-                }
-                $updateData['vendor_id'] = $actualVendorExists ? $validated['vendor_id'] : null;
+            $companyId = session('company_id');
+            if (!$companyId) {
+                abort(403, 'กรุณาเลือกบริษัทก่อน');
             }
-            if (Schema::hasColumn('purchase_orders', 'sap_po_number')) {
-                $updateData['sap_po_number'] = $validated['sap_po_number'] ?? null;
+
+            // Validate vendor exists in current company before assigning
+            $actualVendorExists = false;
+            if (!empty($validated['vendor_id'])) {
+                $currentConnection = session('company_connection', 'mysql');
+                $actualVendorExists = DB::connection($currentConnection)
+                    ->table('vendors')
+                    ->where('id', $validated['vendor_id'])
+                    ->where('company_id', $companyId)
+                    ->exists();
             }
-            if (Schema::hasColumn('purchase_orders', 'contact_name')) {
-                $updateData['contact_name'] = $validated['contact_name'] ?? null;
-            }
-            if (Schema::hasColumn('purchase_orders', 'contact_email')) {
-                $updateData['contact_email'] = $validated['contact_email'];
-            }
+            $updateData['vendor_id'] = $actualVendorExists ? $validated['vendor_id'] : null;
+            $updateData['sap_po_number'] = $validated['sap_po_number'] ?? null;
+            $updateData['contact_name'] = $validated['contact_name'] ?? null;
+            $updateData['contact_email'] = $validated['contact_email'];
             if (isset($validated['vendor_name'])) {
-                $updateData['vendor_name'] = $validated['vendor_name']; // vendor_name should exist in all schemas
+                $updateData['vendor_name'] = $validated['vendor_name'];
             }
 
             // Update purchase order

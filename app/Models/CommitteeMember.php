@@ -13,6 +13,7 @@ class CommitteeMember extends Model
     protected $fillable = [
         'company_id',
         'purchase_order_id',
+        'tor_id',
         'user_id',
         'role',
         'assigned_date',
@@ -36,6 +37,11 @@ class CommitteeMember extends Model
     public function purchaseOrder(): BelongsTo
     {
         return $this->belongsTo(PurchaseOrder::class);
+    }
+
+    public function termsOfReference(): BelongsTo
+    {
+        return $this->belongsTo(TermsOfReference::class, 'tor_id');
     }
 
     public function user(): BelongsTo

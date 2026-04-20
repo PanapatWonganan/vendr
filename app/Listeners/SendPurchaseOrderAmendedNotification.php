@@ -3,14 +3,19 @@
 namespace App\Listeners;
 
 use App\Events\PurchaseOrderAmended;
+use App\Models\Company;
 use App\Models\PoAmendment;
 use App\Models\PurchaseOrder;
 use App\Models\User;
+use App\Services\TelegramBotService;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 
-class SendPurchaseOrderAmendedNotification
+class SendPurchaseOrderAmendedNotification implements ShouldQueue
 {
+    use InteractsWithQueue;
     /**
      * Handle the event.
      */
@@ -21,7 +26,7 @@ class SendPurchaseOrderAmendedNotification
             $eventKey = "po_amended_{$event->purchaseOrderId}_{$event->amendmentId}";
 
             if (Cache::has($eventKey)) {
-                Log::warning('PO Amendment: Duplicate event prevented', [
+                Log::info('PO Amendment: Duplicate notification skipped', [
                     'po_id' => $event->purchaseOrderId,
                     'amendment_id' => $event->amendmentId,
                 ]);
@@ -45,8 +50,9 @@ class SendPurchaseOrderAmendedNotification
 
             $amendment = PoAmendment::on($connectionName)->find($event->amendmentId);
             $approver = User::find($event->approverId);
+            $company = Company::find($event->companyId);
 
-            Log::info('PO Amendment notification sent', [
+            Log::info('PO Amendment notification processing', [
                 'po_number' => $purchaseOrder->po_number,
                 'amendment_number' => $amendment?->amendment_number,
                 'amendment_type' => $amendment?->amendment_type,
@@ -55,8 +61,8 @@ class SendPurchaseOrderAmendedNotification
                 'approved_by' => $approver?->name,
             ]);
 
-            // TODO: Add email notification (Mail::to(...)->send(new PurchaseOrderAmendedMail(...)))
-            // TODO: Add Telegram notification
+            // Send Telegram notification to approvers
+            $this->sendTelegramNotification($purchaseOrder, $amendment, $approver, $company);
 
         } catch (\Exception $e) {
             Log::error('PO Amendment notification failed', [
@@ -64,5 +70,55 @@ class SendPurchaseOrderAmendedNotification
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Send Telegram notification about PO amendment.
+     */
+    private function sendTelegramNotification(
+        PurchaseOrder $purchaseOrder,
+        ?PoAmendment $amendment,
+        ?User $approver,
+        ?Company $company
+    ): void {
+        try {
+            $telegramBot = app(TelegramBotService::class);
+
+            $companyName = $company?->display_name ?? 'Innobic';
+            $previousTotal = $amendment?->previous_total_amount
+                ? number_format($amendment->previous_total_amount, 2)
+                : '-';
+            $newTotal = $amendment?->new_total_amount
+                ? number_format($amendment->new_total_amount, 2)
+                : '-';
+
+            $message = "📝 *PO Amendment*\n"
+                . "บริษัท: {$companyName}\n"
+                . "PO: {$purchaseOrder->po_number}\n"
+                . "ประเภท: " . ($amendment?->amendment_type ?? '-') . "\n"
+                . "มูลค่าเดิม: ฿{$previousTotal}\n"
+                . "มูลค่าใหม่: ฿{$newTotal}\n"
+                . "อนุมัติโดย: " . ($approver?->name ?? '-');
+
+            $telegramBot->sendToApprovers($message);
+
+            Log::info('PO Amendment: Telegram notification sent', [
+                'po_number' => $purchaseOrder->po_number,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('PO Amendment: Telegram notification failed', [
+                'po_number' => $purchaseOrder->po_number,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    public function failed(PurchaseOrderAmended $event, \Throwable $exception): void
+    {
+        Log::error('PO amended notification job failed permanently', [
+            'po_id' => $event->purchaseOrderId,
+            'amendment_id' => $event->amendmentId,
+            'error' => $exception->getMessage(),
+        ]);
     }
 }

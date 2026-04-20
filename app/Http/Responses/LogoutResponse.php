@@ -9,8 +9,8 @@ class LogoutResponse implements LogoutResponseContract
 {
     public function toResponse($request): RedirectResponse
     {
-        // Clear company session เมื่อ logout
-        session()->forget(['company_id', 'company_connection', 'company_name']);
+        // Clear company session ทั้งหมดเมื่อ logout
+        session()->forget(['company_id', 'company_connection', 'company_name', 'company_display_name']);
 
         return redirect()->to(filament()->getLoginUrl());
     }

@@ -35,16 +35,39 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Production: ตั้ง MAIL_MAILER=sendgrid ใน .env
+    | Development: ตั้ง MAIL_MAILER=log ใน .env
+    |
+    | หมายเหตุ: smtp mailer ถูกรวมเข้ากับ sendgrid แล้ว
+    | ถ้าตั้ง MAIL_MAILER=smtp จะ fallback ไป sendgrid โดยอัตโนมัติ
+    |--------------------------------------------------------------------------
+    */
+
     'mailers' => [
 
+        // SendGrid — mailer หลักสำหรับ production
+        // ตั้ง MAIL_MAILER=sendgrid ใน .env
+        'sendgrid' => [
+            'transport' => 'smtp',
+            'host' => 'smtp.sendgrid.net',
+            'port' => 587,
+            'encryption' => 'tls',
+            'username' => 'apikey',
+            'password' => env('SENDGRID_API_KEY'),
+            'timeout' => null,
+        ],
+
+        // smtp — alias ไปยัง sendgrid เพื่อป้องกัน config ซ้ำซ้อน
+        // ถ้า .env ตั้ง MAIL_MAILER=smtp ก็จะใช้ SendGrid เช่นกัน
         'smtp' => [
             'transport' => 'smtp',
-            'scheme' => env('MAIL_SCHEME'),
-            'url' => env('MAIL_URL'),
-            'host' => env('MAIL_HOST', '127.0.0.1'),
-            'port' => env('MAIL_PORT', 2525),
-            'username' => env('MAIL_USERNAME'),
-            'password' => env('MAIL_PASSWORD'),
+            'host' => env('MAIL_HOST', 'smtp.sendgrid.net'),
+            'port' => env('MAIL_PORT', 587),
+            'encryption' => env('MAIL_SCHEME', 'tls'),
+            'username' => env('MAIL_USERNAME', 'apikey'),
+            'password' => env('MAIL_PASSWORD', env('SENDGRID_API_KEY')),
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url(env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
         ],
@@ -55,24 +78,10 @@ return [
 
         'postmark' => [
             'transport' => 'postmark',
-            // 'message_stream_id' => env('POSTMARK_MESSAGE_STREAM_ID'),
-            // 'client' => [
-            //     'timeout' => 5,
-            // ],
         ],
 
         'resend' => [
             'transport' => 'resend',
-        ],
-
-        'sendgrid' => [
-            'transport' => 'smtp',
-            'host' => 'smtp.sendgrid.net',
-            'port' => 587,
-            'encryption' => 'tls',
-            'username' => 'apikey',
-            'password' => env('SENDGRID_API_KEY'),
-            'timeout' => null,
         ],
 
         'sendmail' => [
@@ -92,17 +101,8 @@ return [
         'failover' => [
             'transport' => 'failover',
             'mailers' => [
-                'smtp',
+                'sendgrid',
                 'log',
-            ],
-            'retry_after' => 60,
-        ],
-
-        'roundrobin' => [
-            'transport' => 'roundrobin',
-            'mailers' => [
-                'ses',
-                'postmark',
             ],
             'retry_after' => 60,
         ],

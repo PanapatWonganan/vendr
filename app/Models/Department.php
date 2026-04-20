@@ -11,9 +11,13 @@ class Department extends Model
     use HasFactory;
 
     /**
-     * Use default database connection (shared across all companies)
+     * Use default database connection (shared across all companies).
+     * Not hardcoded so tests can use sqlite in-memory.
      */
-    protected $connection = 'mysql';
+    public function getConnectionName()
+    {
+        return app()->runningUnitTests() ? config('database.default') : 'mysql';
+    }
 
     /**
      * The attributes that are mass assignable.

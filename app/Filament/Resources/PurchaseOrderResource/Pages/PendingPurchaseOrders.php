@@ -32,8 +32,8 @@ class PendingPurchaseOrders extends ListRecords
 
         return static::getResource()::getEloquentQuery()
             ->where('status', 'pending_approval')
-            // Filter by current company
-            ->where('company_id', session('company_id', 1))
+            // Filter by current company (ถ้าไม่มี company_id ให้ return empty results)
+            ->where('company_id', session('company_id') ?: 0)
             ->where(function ($query) use ($user) {
                 // Admin and Procurement Managers can approve any PO
                 if ($user->hasAnyRole(['admin', 'procurement_manager'])) {

@@ -15,7 +15,7 @@
 
             <form wire:submit="selectCompany" class="space-y-6">
                 {{ $this->form }}
-                
+
                 @if($selectedCompany)
                     <div class="rounded-md bg-blue-50 dark:bg-blue-900/20 p-4">
                         <div class="flex">
@@ -24,15 +24,13 @@
                             </div>
                             <div class="ml-3">
                                 <h3 class="text-sm font-medium text-blue-800 dark:text-blue-200">
-                                    {{ $selectedCompany->name }}
+                                    {{ $selectedCompany->display_name }}
                                 </h3>
-                                <div class="mt-2 text-sm text-blue-700 dark:text-blue-300">
-                                    <p>{{ $selectedCompany->description }}</p>
-                                    <p class="mt-1">
-                                        <span class="font-medium">การเชื่อมต่อ:</span> 
-                                        {{ $selectedCompany->database_connection }}
-                                    </p>
-                                </div>
+                                @if($selectedCompany->description)
+                                    <div class="mt-2 text-sm text-blue-700 dark:text-blue-300">
+                                        <p>{{ $selectedCompany->description }}</p>
+                                    </div>
+                                @endif
                             </div>
                         </div>
                     </div>
@@ -42,6 +40,15 @@
                     {{ $this->getFormActions()[0] }}
                 </div>
             </form>
+
+            {{-- Logout link --}}
+            <div class="mt-6 text-center border-t border-gray-200 dark:border-gray-700 pt-4">
+                <button wire:click="logout" type="button"
+                        class="text-sm text-gray-500 hover:text-danger-600 dark:text-gray-400 dark:hover:text-danger-400 transition-colors">
+                    <x-heroicon-m-arrow-left-on-rectangle class="w-4 h-4 inline-block mr-1" />
+                    ออกจากระบบ
+                </button>
+            </div>
         </div>
     </div>
 </x-filament-panels::page>

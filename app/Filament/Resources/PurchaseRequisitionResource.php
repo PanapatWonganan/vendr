@@ -406,7 +406,7 @@ class PurchaseRequisitionResource extends Resource
                             ->minItems(1)
                             ->live()
                             ->afterStateUpdated(function ($state, $set) {
-                                $totalAmount = collect($state ?? [])->sum('total_price');
+                                $totalAmount = collect($state ?? [])->sum('estimated_amount');
                                 $set('total_amount', $totalAmount);
                             }),
                     ]),

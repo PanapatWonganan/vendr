@@ -62,6 +62,7 @@ class GoodsReceipt extends BaseModel
     ];
 
     const STATUS_DRAFT = 'draft';
+    const STATUS_PENDING_REVIEW = 'pending_review';
     const STATUS_COMPLETED = 'completed';
     const STATUS_RETURNED = 'returned';
     const STATUS_PARTIALLY_RETURNED = 'partially_returned';
@@ -105,11 +106,6 @@ class GoodsReceipt extends BaseModel
     public function purchaseOrder(): BelongsTo
     {
         return $this->belongsTo(PurchaseOrder::class);
-    }
-
-    public function supplier(): BelongsTo
-    {
-        return $this->belongsTo(Supplier::class, 'supplier_id');
     }
 
     public function vendor(): BelongsTo
@@ -186,6 +182,7 @@ class GoodsReceipt extends BaseModel
     {
         return match ($this->status) {
             self::STATUS_DRAFT => 'แบบร่าง',
+            self::STATUS_PENDING_REVIEW => 'รอตรวจสอบ',
             self::STATUS_COMPLETED => 'เสร็จสมบูรณ์',
             self::STATUS_RETURNED => 'ส่งคืน',
             self::STATUS_PARTIALLY_RETURNED => 'ส่งคืนบางส่วน',
@@ -198,6 +195,7 @@ class GoodsReceipt extends BaseModel
     {
         return match ($this->status) {
             self::STATUS_DRAFT => 'bg-secondary',
+            self::STATUS_PENDING_REVIEW => 'bg-warning',
             self::STATUS_COMPLETED => 'bg-success',
             self::STATUS_RETURNED => 'bg-warning',
             self::STATUS_PARTIALLY_RETURNED => 'bg-info',
@@ -233,24 +231,33 @@ class GoodsReceipt extends BaseModel
         $prefix = 'GR';
         $year = date('Y');
         $month = date('m');
-        
-        $lastReceipt = self::where('gr_number', 'like', "$prefix$year$month%")
-            ->orderBy('gr_number', 'desc')
-            ->first();
-        
-        if ($lastReceipt) {
-            $lastNumber = intval(substr($lastReceipt->gr_number, -4));
-            $newNumber = $lastNumber + 1;
-        } else {
-            $newNumber = 1;
+        $companyId = $this->company_id ?? session('company_id');
+
+        if (!$companyId) {
+            throw new \RuntimeException('Cannot generate GR number without company context.');
         }
-        
-        return sprintf("%s%s%s%04d", $prefix, $year, $month, $newNumber);
+
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($prefix, $year, $month, $companyId) {
+            $lastReceipt = self::where('company_id', $companyId)
+                ->where('gr_number', 'like', "$prefix$year$month%")
+                ->orderBy('gr_number', 'desc')
+                ->lockForUpdate()
+                ->first();
+
+            if ($lastReceipt) {
+                $lastNumber = intval(substr($lastReceipt->gr_number, -4));
+                $newNumber = $lastNumber + 1;
+            } else {
+                $newNumber = 1;
+            }
+
+            return sprintf("%s%s%s%04d", $prefix, $year, $month, $newNumber);
+        });
     }
 
     public function canEdit()
     {
-        return in_array($this->status, [self::STATUS_DRAFT, self::STATUS_REJECTED]);
+        return $this->status === self::STATUS_DRAFT;
     }
 
     public function canDelete()

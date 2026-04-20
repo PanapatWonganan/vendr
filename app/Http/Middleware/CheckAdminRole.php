@@ -15,10 +15,11 @@ class CheckAdminRole
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!auth()->check() || !auth()->user()->roles->contains('name', 'admin')) {
+        // ใช้ hasRole() เพื่อให้เช็ค is_active/expires_at ตาม role_user pivot
+        if (!auth()->check() || !auth()->user()->hasRole('admin')) {
             abort(403, 'ไม่มีสิทธิ์เข้าถึง จำเป็นต้องมีสิทธิ์ผู้ดูแลระบบ (admin)');
         }
-        
+
         return $next($request);
     }
 }

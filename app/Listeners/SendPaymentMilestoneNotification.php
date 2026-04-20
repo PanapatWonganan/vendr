@@ -6,11 +6,14 @@ use App\Events\PaymentMilestonePaid;
 use App\Mail\PaymentMilestoneNotificationMail;
 use App\Models\PaymentMilestone;
 use App\Models\User;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
-class SendPaymentMilestoneNotification
+class SendPaymentMilestoneNotification implements ShouldQueue
 {
+    use InteractsWithQueue;
 
     /**
      * Create the event listener.
@@ -99,5 +102,13 @@ class SendPaymentMilestoneNotification
             Log::error("Error handling PaymentMilestonePaid event: " . $e->getMessage());
             throw $e; // Re-throw so it can be retried
         }
+    }
+
+    public function failed(PaymentMilestonePaid $event, \Throwable $exception): void
+    {
+        Log::error('Payment milestone notification job failed permanently', [
+            'milestone_id' => $event->paymentMilestoneId,
+            'error' => $exception->getMessage(),
+        ]);
     }
 }

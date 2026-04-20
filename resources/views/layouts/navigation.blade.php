@@ -25,7 +25,7 @@
                     
                     {{-- Admin Menu - Use Filament Admin Panel instead --}}
                     @auth
-                        @if(auth()->user()->roles->contains('name', 'admin'))
+                        @if(auth()->user()->hasRole('admin'))
                             <x-nav-link :href="url('/admin')" :active="request()->is('admin/*')">
                                 {{ __('Admin Panel') }}
                             </x-nav-link>
@@ -96,7 +96,7 @@
             
             {{-- Admin Menu - Use Filament Admin Panel instead --}}
             @auth
-                @if(auth()->user()->roles->contains('name', 'admin'))
+                @if(auth()->user()->hasRole('admin'))
                     <x-responsive-nav-link :href="url('/admin')" :active="request()->is('admin/*')">
                         {{ __('Admin Panel') }}
                     </x-responsive-nav-link>

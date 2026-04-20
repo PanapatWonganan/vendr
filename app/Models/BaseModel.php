@@ -16,7 +16,19 @@ abstract class BaseModel extends Model
         // Automatically set company_id when creating records
         static::creating(function ($model) {
             if (in_array('company_id', $model->getFillable()) && !$model->company_id) {
-                $model->company_id = session('selected_company_id') ?: session('company_id', 1);
+                // ใช้ key เดียวคือ 'company_id' เพื่อความสม่ำเสมอ
+                $companyId = session('company_id');
+
+                if (!$companyId) {
+                    // ไม่มี company context → ห้ามสร้าง record เพื่อป้องกัน multi-tenancy leak
+                    // (เช่น ใน queue/artisan ต้อง set session หรือ pass company_id ก่อน)
+                    throw new \RuntimeException(
+                        'Cannot create ' . static::class . ' without company context. '
+                        . 'Ensure session has company_id or pass company_id explicitly.'
+                    );
+                }
+
+                $model->company_id = $companyId;
             }
         });
     }

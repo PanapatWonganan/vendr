@@ -57,7 +57,7 @@ class ListPaymentMilestones extends ListRecords
                     
                     for ($i = 1; $i <= $count; $i++) {
                         \App\Models\PaymentMilestone::create([
-                            'company_id' => session('company_id', 1),
+                            'company_id' => session('company_id') ?: $po->company_id,
                             'purchase_order_id' => $po->id,
                             'milestone_number' => $i,
                             'milestone_title' => "งวดที่ {$i}",

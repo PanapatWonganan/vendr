@@ -84,6 +84,10 @@ class ProcurementAttachment extends BaseModel
             'delivery_note' => 'Delivery Note',
             'inspection_report' => 'Inspection Report',
             'approval_document' => 'Approval Document',
+            'tor_specification' => 'TOR Specification',
+            'tor_drawing' => 'TOR Drawing',
+            'tor_reference' => 'TOR Reference',
+            'tor_template' => 'TOR Template',
             'other' => 'Other',
         ];
     }

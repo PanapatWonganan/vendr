@@ -12,6 +12,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequisition;
 use App\Models\PurchaseRequisitionItem;
 use App\Models\SlaTracking;
+use App\Models\TermsOfReference;
 use App\Models\User;
 use App\Models\Vendor;
 use App\Models\VendorAssessment;
@@ -119,7 +120,7 @@ class TelegramBotService
     protected function apiRequest(string $method, array $params): array
     {
         try {
-            $response = Http::post("{$this->apiUrl}/{$method}", $params);
+            $response = Http::timeout(15)->post("{$this->apiUrl}/{$method}", $params);
             return $response->json() ?? [];
         } catch (\Exception $e) {
             Log::error("Telegram API error: {$e->getMessage()}");
@@ -190,6 +191,8 @@ class TelegramBotService
                 '/ask' => $this->handleAsk($chatId, $args),
                 '/notify' => $this->handleNotify($chatId, $args),
                 '/weeklydigest' => $this->handleWeeklyDigest($chatId),
+                '/tor_pending' => $this->handleTorPending($chatId),
+                '/tor_approved' => $this->handleTorApproved($chatId),
                 '/help' => $this->handleHelp($chatId),
                 default => $this->sendMessage($chatId, "ไม่รู้จักคำสั่ง {$command}\nพิมพ์ /help เพื่อดูคำสั่งทั้งหมด"),
             };
@@ -300,15 +303,70 @@ class TelegramBotService
             return;
         }
 
+        // Rate limiting: อนุญาตแค่ 5 ครั้งต่อ 10 นาที ต่อ chat_id
+        $rateLimitKey = "tg_verify_attempts:{$chatId}";
+        $attempts = (int) Cache::get($rateLimitKey, 0);
+        $maxAttempts = 5;
+        $windowSeconds = 600; // 10 นาที
+
+        if ($attempts >= $maxAttempts) {
+            $ttl = Cache::get("{$rateLimitKey}:ttl_set")
+                ? max(1, (int) (Cache::get("{$rateLimitKey}:ttl_expires", now()->timestamp) - now()->timestamp))
+                : $windowSeconds;
+            $minutes = (int) ceil($ttl / 60);
+
+            \Illuminate\Support\Facades\Log::warning('Telegram OTP rate limit hit', [
+                'chat_id' => $chatId,
+                'attempts' => $attempts,
+            ]);
+
+            $this->sendMessage($chatId,
+                "⛔️ พยายามใส่ OTP ผิดเกิน {$maxAttempts} ครั้ง\n" .
+                "กรุณารอประมาณ {$minutes} นาที แล้วค่อยลองใหม่"
+            );
+            return;
+        }
+
+        // Validate format: ต้องเป็นเลข 6 หลัก
+        if (!preg_match('/^\d{6}$/', $otp)) {
+            Cache::put($rateLimitKey, $attempts + 1, $windowSeconds);
+            Cache::put("{$rateLimitKey}:ttl_set", true, $windowSeconds);
+            Cache::put("{$rateLimitKey}:ttl_expires", now()->addSeconds($windowSeconds)->timestamp, $windowSeconds);
+            $this->sendMessage($chatId, "รหัส OTP ต้องเป็นเลข 6 หลัก");
+            return;
+        }
+
         $user = User::where('telegram_otp', $otp)
             ->where('telegram_otp_expires_at', '>', now())
             ->whereNull('telegram_chat_id')
             ->first();
 
         if (!$user) {
-            $this->sendMessage($chatId, "รหัส OTP ไม่ถูกต้องหรือหมดอายุแล้ว\nกรุณาลอง /register ใหม่");
+            // นับ attempt แม้ผิด เพื่อกัน brute-force
+            $newAttempts = $attempts + 1;
+            Cache::put($rateLimitKey, $newAttempts, $windowSeconds);
+            Cache::put("{$rateLimitKey}:ttl_set", true, $windowSeconds);
+            Cache::put("{$rateLimitKey}:ttl_expires", now()->addSeconds($windowSeconds)->timestamp, $windowSeconds);
+
+            $remaining = max(0, $maxAttempts - $newAttempts);
+
+            \Illuminate\Support\Facades\Log::info('Telegram OTP verify failed', [
+                'chat_id' => $chatId,
+                'attempts' => $newAttempts,
+            ]);
+
+            $this->sendMessage($chatId,
+                "❌ รหัส OTP ไม่ถูกต้องหรือหมดอายุแล้ว\n" .
+                "พยายามได้อีก {$remaining} ครั้ง\n" .
+                "กรุณาลอง /register ใหม่ถ้า OTP หมดอายุ"
+            );
             return;
         }
+
+        // Success → clear rate limit counter
+        Cache::forget($rateLimitKey);
+        Cache::forget("{$rateLimitKey}:ttl_set");
+        Cache::forget("{$rateLimitKey}:ttl_expires");
 
         $username = null;
         // Try to get username from cache or message context
@@ -323,6 +381,11 @@ class TelegramBotService
             'telegram_otp' => null,
             'telegram_otp_expires_at' => null,
             'telegram_linked_at' => now(),
+        ]);
+
+        \Illuminate\Support\Facades\Log::info('Telegram OTP verified successfully', [
+            'user_id' => $user->id,
+            'chat_id' => $chatId,
         ]);
 
         $this->sendMessage($chatId,
@@ -1136,7 +1199,7 @@ class TelegramBotService
         $creator = $po->creator->name ?? 'N/A';
         $approver = $po->approver->name ?? '-';
         $amount = number_format($po->total_amount ?? 0, 2);
-        $pr = $po->purchaseRequisition ?? $po->purchaseRequisitionByPrId;
+        $pr = $po->purchaseRequisition;
 
         $text = "📦 <b>รายละเอียด PO</b>\n\n";
         $text .= "📋 เลขที่: <b>{$po->po_number}</b>\n";
@@ -4285,6 +4348,171 @@ class TelegramBotService
         } catch (\Exception $e) {
             Log::error("Failed to dispatch PR submitted event: {$e->getMessage()}");
         }
+    }
+
+    // ==========================================
+    // TOR Command Handlers
+    // ==========================================
+
+    protected function handleTorPending(string $chatId): void
+    {
+        $user = $this->getLinkedUser($chatId);
+        if (!$user) return;
+
+        $tors = TermsOfReference::whereIn('status', ['submitted', 'reviewing'])
+            ->orderBy('submitted_at', 'desc')
+            ->limit(10)
+            ->get();
+
+        if ($tors->isEmpty()) {
+            $this->sendMessage($chatId, "ไม่มี TOR ที่รอพิจารณา");
+            return;
+        }
+
+        $text = "<b>TOR รอพิจารณา ({$tors->count()} รายการ)</b>\n\n";
+
+        foreach ($tors as $index => $tor) {
+            $priorityIcon = match ($tor->priority) {
+                'urgent' => '🔴',
+                'high' => '🟠',
+                'medium' => '🟡',
+                default => '🟢',
+            };
+            $text .= ($index + 1) . ". {$priorityIcon} <b>{$tor->tor_number}</b>\n" .
+                "   {$tor->title}\n" .
+                "   💰 " . number_format($tor->budget_estimate ?? 0, 2) . " {$tor->currency}\n" .
+                "   📅 ส่ง: " . ($tor->submitted_at?->format('d/m/Y') ?? '-') . "\n\n";
+        }
+
+        $this->sendMessage($chatId, $text);
+    }
+
+    protected function handleTorApproved(string $chatId): void
+    {
+        $user = $this->getLinkedUser($chatId);
+        if (!$user) return;
+
+        $tors = TermsOfReference::where('status', 'approved')
+            ->whereDoesntHave('purchaseRequisitions')
+            ->orderBy('approved_at', 'desc')
+            ->limit(10)
+            ->get();
+
+        if ($tors->isEmpty()) {
+            $this->sendMessage($chatId, "ไม่มี TOR ที่อนุมัติแล้วแต่ยังไม่สร้าง PR");
+            return;
+        }
+
+        $text = "<b>TOR อนุมัติแล้ว (ยังไม่สร้าง PR)</b>\n\n";
+        $totalBudget = 0;
+
+        foreach ($tors as $index => $tor) {
+            $text .= ($index + 1) . ". ✅ <b>{$tor->tor_number}</b>\n" .
+                "   {$tor->title}\n" .
+                "   💰 " . number_format($tor->budget_estimate ?? 0, 2) . " {$tor->currency}\n" .
+                "   📅 อนุมัติ: " . ($tor->approved_at?->format('d/m/Y') ?? '-') . "\n\n";
+            $totalBudget += $tor->budget_estimate ?? 0;
+        }
+
+        $text .= "💰 <b>รวมมูลค่า:</b> " . number_format($totalBudget, 2) . " THB";
+
+        $this->sendMessage($chatId, $text);
+    }
+
+    // ==========================================
+    // TOR Notification Methods
+    // ==========================================
+
+    public function notifyTorSubmitted(TermsOfReference $tor, User $submitter): void
+    {
+        $approvers = $this->getTorApprovers($tor);
+
+        $text = "📋 <b>TOR ใหม่รอพิจารณา</b>\n\n" .
+            "เลขที่: <b>{$tor->tor_number}</b>\n" .
+            "ชื่อ: {$tor->title}\n" .
+            "👤 ผู้ส่ง: {$submitter->name}\n" .
+            "🏢 แผนก: " . ($tor->department->name ?? '-') . "\n" .
+            "💰 งบ: " . number_format($tor->budget_estimate ?? 0, 2) . " {$tor->currency}\n" .
+            "⚡ ลำดับสำคัญ: " . (TermsOfReference::getPriorityOptions()[$tor->priority] ?? $tor->priority);
+
+        foreach ($approvers as $approver) {
+            if ($approver->telegram_chat_id && $approver->id !== $submitter->id) {
+                $this->sendMessage($approver->telegram_chat_id, $text);
+            }
+        }
+    }
+
+    public function notifyTorApproved(TermsOfReference $tor, User $approver): void
+    {
+        $creator = User::find($tor->created_by);
+        if ($creator && $creator->telegram_chat_id) {
+            $this->sendMessage($creator->telegram_chat_id,
+                "✅ <b>TOR ได้รับการอนุมัติ!</b>\n\n" .
+                "📋 เลขที่: {$tor->tor_number}\n" .
+                "📝 ชื่อ: {$tor->title}\n" .
+                "👤 อนุมัติโดย: {$approver->name}\n" .
+                "🕐 เวลา: " . now()->format('d/m/Y H:i') . "\n\n" .
+                "สามารถสร้าง PR จาก TOR นี้ได้แล้ว"
+            );
+        }
+    }
+
+    public function notifyTorRejected(TermsOfReference $tor, User $rejector, string $reason = ''): void
+    {
+        $creator = User::find($tor->created_by);
+        if ($creator && $creator->telegram_chat_id) {
+            $text = "❌ <b>TOR ถูกปฏิเสธ</b>\n\n" .
+                "📋 เลขที่: {$tor->tor_number}\n" .
+                "📝 ชื่อ: {$tor->title}\n" .
+                "👤 ปฏิเสธโดย: {$rejector->name}\n";
+
+            if ($reason) {
+                $text .= "📄 เหตุผล: {$reason}\n";
+            }
+
+            $this->sendMessage($creator->telegram_chat_id, $text);
+        }
+    }
+
+    public function sendToApprovers(string $message): void
+    {
+        $approvers = User::whereHas('roles', fn ($q) => $q->whereIn('name', ['admin', 'procurement_manager']))
+            ->whereNotNull('telegram_chat_id')
+            ->get();
+
+        foreach ($approvers as $approver) {
+            try {
+                $this->sendMessage($approver->telegram_chat_id, $message);
+            } catch (\Exception $e) {
+                Log::error('Failed to send Telegram to approver', [
+                    'approver_id' => $approver->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    protected function getTorApprovers(TermsOfReference $tor): \Illuminate\Support\Collection
+    {
+        $approvers = collect();
+
+        $approvers = $approvers->merge(
+            User::whereHas('roles', fn ($q) => $q->where('name', 'admin'))->get()
+        );
+
+        $approvers = $approvers->merge(
+            User::whereHas('roles', fn ($q) => $q->where('name', 'procurement_manager'))->get()
+        );
+
+        if ($tor->department_id) {
+            $approvers = $approvers->merge(
+                User::whereHas('roles', fn ($q) => $q->where('name', 'department_head'))
+                    ->where('department_id', $tor->department_id)
+                    ->get()
+            );
+        }
+
+        return $approvers->unique('id');
     }
 
     // ==========================================

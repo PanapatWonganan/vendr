@@ -10,10 +10,11 @@ class ExampleTest extends TestCase
     /**
      * A basic test example.
      */
-    public function test_the_application_returns_a_successful_response(): void
+    public function test_the_application_redirects_to_admin(): void
     {
         $response = $this->get('/');
 
-        $response->assertStatus(200);
+        // Root URL redirects to Filament admin panel
+        $response->assertRedirect('/admin');
     }
 }

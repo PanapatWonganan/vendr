@@ -47,7 +47,7 @@ class ValueAnalysisController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'purchase_requisition_id' => 'required|exists:purchase_requisitions,id',
+            'purchase_requisition_id' => 'required|exists:purchase_requisitions,id,company_id,' . session('company_id'),
             'procured_from' => 'nullable|string|max:1000',
             'agreed_amount' => 'nullable|numeric|min:0',
         ]);

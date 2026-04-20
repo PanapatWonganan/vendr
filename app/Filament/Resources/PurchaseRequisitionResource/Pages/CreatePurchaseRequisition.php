@@ -4,6 +4,7 @@ namespace App\Filament\Resources\PurchaseRequisitionResource\Pages;
 
 use App\Filament\Resources\PurchaseRequisitionResource;
 use App\Models\PurchaseRequisition;
+use App\Models\TermsOfReference;
 use App\Events\PurchaseRequisitionSubmitted;
 use Filament\Actions;
 use Filament\Resources\Pages\CreateRecord;
@@ -14,6 +15,25 @@ class CreatePurchaseRequisition extends CreateRecord
 {
     protected static string $resource = PurchaseRequisitionResource::class;
 
+    public ?TermsOfReference $tor = null;
+
+    public function mount(): void
+    {
+        parent::mount();
+
+        // Check for TOR reference
+        $torId = request()->query('tor_id');
+        if ($torId) {
+            $this->tor = TermsOfReference::find($torId);
+            if ($this->tor && $this->tor->status === 'approved') {
+                $prData = $this->tor->convertToPrData();
+                $prItems = $this->tor->convertItemsToPrItems();
+                $prData['items'] = $prItems;
+                $this->form->fill($prData);
+            }
+        }
+    }
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['company_id'] = session('company_id') ?? 1; // Default to company 1 if not set
@@ -22,6 +42,11 @@ class CreatePurchaseRequisition extends CreateRecord
         $data['status'] = 'draft';
         $data['request_date'] = now();
         $data['currency'] = $data['currency'] ?? 'THB';
+
+        // Preserve TOR reference
+        if ($this->tor) {
+            $data['tor_id'] = $this->tor->id;
+        }
 
         return $data;
     }

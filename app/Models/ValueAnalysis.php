@@ -13,6 +13,21 @@ class ValueAnalysis extends Model
 
     protected $table = 'value_analysis';
 
+    // Status constants
+    const STATUS_DRAFT = 'draft';
+    const STATUS_IN_PROGRESS = 'in_progress';
+    const STATUS_COMPLETED = 'completed';
+    const STATUS_APPROVED = 'approved';
+    const STATUS_REJECTED = 'rejected';
+
+    const STATUSES = [
+        self::STATUS_DRAFT,
+        self::STATUS_IN_PROGRESS,
+        self::STATUS_COMPLETED,
+        self::STATUS_APPROVED,
+        self::STATUS_REJECTED,
+    ];
+
     const AMENDMENT_TYPES = [
         'price_change' => 'ปรับราคา',
         'quantity_change' => 'ปรับจำนวน',
@@ -103,7 +118,7 @@ class ValueAnalysis extends Model
         return $this->parent_va_id !== null;
     }
 
-    public function getOriginal_va(): self
+    public function getOriginalVa(): self
     {
         return $this->parent_va_id ? $this->parentVa : $this;
     }
@@ -287,19 +302,31 @@ class ValueAnalysis extends Model
         $month = date('m');
         $day = date('d');
         $prefix = "VA-{$year}{$month}{$day}";
-        
-        $lastVA = static::where('va_number', 'like', "{$prefix}%")
-            ->orderBy('va_number', 'desc')
-            ->first();
+        $companyId = session('company_id');
 
-        if ($lastVA) {
-            $lastNumber = (int) substr($lastVA->va_number, -4);
-            $newNumber = $lastNumber + 1;
-        } else {
-            $newNumber = 1;
+        if (!$companyId) {
+            throw new \RuntimeException('Cannot generate VA number without company context.');
         }
 
-        return $prefix . '-' . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($prefix, $companyId) {
+            // Scope ผ่าน PR เพราะ value_analysis ไม่มี company_id column โดยตรง
+            $lastVA = static::whereHas('purchaseRequisition', function ($q) use ($companyId) {
+                    $q->where('company_id', $companyId);
+                })
+                ->where('va_number', 'like', "{$prefix}%")
+                ->orderBy('va_number', 'desc')
+                ->lockForUpdate()
+                ->first();
+
+            if ($lastVA) {
+                $lastNumber = (int) substr($lastVA->va_number, -4);
+                $newNumber = $lastNumber + 1;
+            } else {
+                $newNumber = 1;
+            }
+
+            return $prefix . '-' . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+        });
     }
 
     public function getStatusTextAttribute(): string

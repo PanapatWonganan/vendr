@@ -12,7 +12,7 @@ use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Widgets;
 use App\Filament\Widgets\CompanySelector;
-use App\Filament\Middleware\CompanyMiddleware;
+use App\Http\Middleware\CompanyMiddleware;
 use App\Filament\Pages\CompanySelect;
 use Filament\Navigation\NavigationGroup;
 use Filament\Navigation\NavigationItem;
@@ -67,6 +67,9 @@ class AdminPanelProvider extends PanelProvider
                 \App\Filament\Widgets\ProcurementStatsOverview::class,
                 \App\Filament\Widgets\PendingApprovalsChart::class,
                 \App\Filament\Widgets\ProcurementReportsWidget::class,
+                \App\Filament\Widgets\TorStatsWidget::class,
+                \App\Filament\Widgets\TorStatusChart::class,
+                \App\Filament\Widgets\TorDepartmentChart::class,
                 Widgets\AccountWidget::class,
             ])
             ->middleware([
@@ -82,7 +85,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 \App\Http\Middleware\CustomFilamentAuth::class,
-                CompanyMiddleware::class,
+                \App\Http\Middleware\CompanyMiddleware::class,
             ])
             ->navigationGroups([
                 'Procurement Management',

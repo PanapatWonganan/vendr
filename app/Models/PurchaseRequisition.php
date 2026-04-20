@@ -13,6 +13,23 @@ class PurchaseRequisition extends Model
 {
     use HasFactory;
 
+    // Status constants
+    const STATUS_DRAFT = 'draft';
+    const STATUS_PENDING_APPROVAL = 'pending_approval';
+    const STATUS_APPROVED = 'approved';
+    const STATUS_REJECTED = 'rejected';
+    const STATUS_COMPLETED = 'completed';
+    const STATUS_CANCELLED = 'cancelled';
+
+    const STATUSES = [
+        self::STATUS_DRAFT,
+        self::STATUS_PENDING_APPROVAL,
+        self::STATUS_APPROVED,
+        self::STATUS_REJECTED,
+        self::STATUS_COMPLETED,
+        self::STATUS_CANCELLED,
+    ];
+
     /**
      * The attributes that are mass assignable.
      *
@@ -36,7 +53,6 @@ class PurchaseRequisition extends Model
         'inspection_committee_id',
         'pr_approver_id',
         'other_stakeholder_id',
-        'department',
         'department_id',
         'requester_id',
         'created_by',
@@ -77,6 +93,8 @@ class PurchaseRequisition extends Model
         // SLA tracking fields
         'submitted_at',
         'pr_approved_at',
+        // TOR reference
+        'tor_id',
     ];
 
     /**
@@ -116,14 +134,6 @@ class PurchaseRequisition extends Model
      * Get the user who requested the purchase requisition.
      */
     public function requester(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'requester_id');
-    }
-
-    /**
-     * Get the user who requested the purchase requisition (alias for requester).
-     */
-    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'requester_id');
     }
@@ -284,6 +294,14 @@ class PurchaseRequisition extends Model
     }
 
     /**
+     * Get the TOR that this PR was created from.
+     */
+    public function termsOfReference(): BelongsTo
+    {
+        return $this->belongsTo(TermsOfReference::class, 'tor_id');
+    }
+
+    /**
      * Get the items for the purchase requisition.
      */
     public function items(): HasMany
@@ -364,25 +382,34 @@ class PurchaseRequisition extends Model
     }
 
     /**
-     * Generate a unique PR number.
+     * Generate a unique PR number (scoped per company + row-locked).
      */
     public static function generatePRNumber(): string
     {
         $prefix = 'PR';
         $year = date('Y');
         $month = date('m');
-        
-        $lastPR = self::where('pr_number', 'like', "{$prefix}{$year}{$month}%")
-            ->orderBy('pr_number', 'desc')
-            ->first();
-        
-        if ($lastPR) {
-            $lastNumber = (int) substr($lastPR->pr_number, 8);
-            $newNumber = $lastNumber + 1;
-        } else {
-            $newNumber = 1;
+        $companyId = session('company_id');
+
+        if (!$companyId) {
+            throw new \RuntimeException('Cannot generate PR number without company context.');
         }
-        
-        return $prefix . $year . $month . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+
+        return \Illuminate\Support\Facades\DB::transaction(function () use ($prefix, $year, $month, $companyId) {
+            $lastPR = self::where('company_id', $companyId)
+                ->where('pr_number', 'like', "{$prefix}{$year}{$month}%")
+                ->orderBy('pr_number', 'desc')
+                ->lockForUpdate()
+                ->first();
+
+            if ($lastPR) {
+                $lastNumber = (int) substr($lastPR->pr_number, 8);
+                $newNumber = $lastNumber + 1;
+            } else {
+                $newNumber = 1;
+            }
+
+            return $prefix . $year . $month . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+        });
     }
 } 

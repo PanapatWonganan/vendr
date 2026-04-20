@@ -35,10 +35,16 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('purchase_orders', function (Blueprint $table) {
-            $table->dropForeign(['company_id']);
-            $table->dropForeign(['inspection_committee_id']);
-            $table->dropForeign(['pr_id']);
-            $table->dropColumn(['company_id', 'inspection_committee_id', 'pr_id']);
+            // No foreign keys were created in up(), so only drop columns
+            if (Schema::hasColumn('purchase_orders', 'company_id')) {
+                $table->dropColumn('company_id');
+            }
+            if (Schema::hasColumn('purchase_orders', 'inspection_committee_id')) {
+                $table->dropColumn('inspection_committee_id');
+            }
+            if (Schema::hasColumn('purchase_orders', 'pr_id')) {
+                $table->dropColumn('pr_id');
+            }
         });
     }
 };

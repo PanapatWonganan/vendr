@@ -45,4 +45,8 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
     ],
 
+    'procurement' => [
+        'fallback_admin_email' => env('PROCUREMENT_FALLBACK_ADMIN_EMAIL', 'admin@innobic.com'),
+    ],
+
 ];

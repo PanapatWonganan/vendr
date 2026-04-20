@@ -16,20 +16,28 @@ return new class extends Migration
             $table->dropForeign(['goods_receipt_id']);
         });
         
+        // Drop all composite indexes that reference columns we're about to drop (required for SQLite)
         Schema::table('payment_milestones', function (Blueprint $table) {
-            // Remove old columns that are not needed anymore
-            $table->dropColumn(['goods_receipt_id', 'sequence', 'is_deposit', 'requires_gr', 'description']);
-            
-            // Rename milestone_name to milestone_title
+            $table->dropIndex(['purchase_order_id', 'sequence']);
+            $table->dropIndex(['company_id', 'status']);
+            $table->dropIndex(['due_date', 'status']);
+        });
+
+        // Drop old columns (SQLite requires separate calls for drop, rename, and add)
+        Schema::table('payment_milestones', function (Blueprint $table) {
+            $table->dropColumn(['goods_receipt_id', 'sequence', 'is_deposit', 'requires_gr', 'description', 'status']);
+        });
+
+        // Rename milestone_name to milestone_title
+        Schema::table('payment_milestones', function (Blueprint $table) {
             $table->renameColumn('milestone_name', 'milestone_title');
-            
-            // Add new columns
+        });
+
+        // Add new columns
+        Schema::table('payment_milestones', function (Blueprint $table) {
             $table->integer('milestone_number')->after('purchase_order_id'); // งวดที่ 1, 2, 3
             $table->text('payment_terms')->nullable()->after('amount'); // เงื่อนไขการจ่าย
             $table->unsignedBigInteger('updated_by')->nullable()->after('created_by');
-            
-            // Update enum values for status
-            $table->dropColumn('status');
         });
         
         // Add status column with new enum values

@@ -34,8 +34,8 @@ class PurchaseRequisitionController extends Controller
     {
         // Check if user has permission to view purchase requisitions
         if (!Auth::user()->hasPermission('purchase_requisition.read') && 
-            !Auth::user()->roles->contains('name', 'requester') && 
-            !Auth::user()->roles->contains('name', 'admin')) {
+            !Auth::user()->hasRole('requester') && 
+            !Auth::user()->hasRole('admin')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -47,7 +47,7 @@ class PurchaseRequisitionController extends Controller
         $work_type = $request->input('work_type');
         $procurement_method = $request->input('procurement_method');
 
-        $purchaseRequisitions = PurchaseRequisition::with(['department', 'requester', 'user', 'company', 'attachments'])
+        $purchaseRequisitions = PurchaseRequisition::with(['department', 'requester', 'company', 'attachments'])
             ->where('company_id', session('company_id'))
             ->when($status, function ($q) use ($status) {
                 return $q->where('status', $status);
@@ -104,8 +104,8 @@ class PurchaseRequisitionController extends Controller
     {
         // Check if user has permission to create purchase requisitions
         if (!Auth::user()->hasPermission('purchase_requisition.create') && 
-            !Auth::user()->roles->contains('name', 'requester') && 
-            !Auth::user()->roles->contains('name', 'admin')) {
+            !Auth::user()->hasRole('requester') && 
+            !Auth::user()->hasRole('admin')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -301,13 +301,13 @@ class PurchaseRequisitionController extends Controller
     {
         // Check if user has permission to view purchase requisitions
         if (!Auth::user()->hasPermission('purchase_requisition.read') && 
-            !Auth::user()->roles->contains('name', 'requester') && 
-            !Auth::user()->roles->contains('name', 'admin')) {
+            !Auth::user()->hasRole('requester') && 
+            !Auth::user()->hasRole('admin')) {
             abort(403, 'Unauthorized action.');
         }
 
         // Check if user can view this specific PR
-        if (!Auth::user()->roles->contains('name', 'admin') && 
+        if (!Auth::user()->hasRole('admin') && 
             !Auth::user()->hasRole('procurement_officer') && 
             !Auth::user()->hasRole('procurement_manager') && 
             Auth::user()->department_id != $purchaseRequisition->department_id && 
@@ -353,13 +353,13 @@ class PurchaseRequisitionController extends Controller
     {
         // Check if user has permission to edit purchase requisitions
         if (!Auth::user()->hasPermission('purchase_requisition.update') && 
-            !Auth::user()->roles->contains('name', 'requester') && 
-            !Auth::user()->roles->contains('name', 'admin')) {
+            !Auth::user()->hasRole('requester') && 
+            !Auth::user()->hasRole('admin')) {
             abort(403, 'Unauthorized action.');
         }
 
         // Check if user can edit this specific PR
-        if (!Auth::user()->roles->contains('name', 'admin') && 
+        if (!Auth::user()->hasRole('admin') && 
             Auth::user()->id != $purchaseRequisition->requester_id) {
             abort(403, 'Unauthorized action.');
         }
@@ -415,8 +415,8 @@ class PurchaseRequisitionController extends Controller
     {
         // Check if user has permission to update purchase requisitions
         if (!Auth::user()->hasPermission('purchase_requisition.update') && 
-            !Auth::user()->roles->contains('name', 'requester') && 
-            !Auth::user()->roles->contains('name', 'admin')) {
+            !Auth::user()->hasRole('requester') && 
+            !Auth::user()->hasRole('admin')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -430,7 +430,7 @@ class PurchaseRequisitionController extends Controller
         ]);
 
         // Check if user can update this specific PR
-        if (!Auth::user()->roles->contains('name', 'admin') && 
+        if (!Auth::user()->hasRole('admin') && 
             Auth::user()->id != $purchaseRequisition->requester_id) {
             abort(403, 'Unauthorized action.');
         }
@@ -673,8 +673,8 @@ class PurchaseRequisitionController extends Controller
         
         // Check if user has permission to view purchase requisitions
         if (!Auth::user()->hasPermission('purchase_requisition.read') && 
-            !Auth::user()->roles->contains('name', 'requester') && 
-            !Auth::user()->roles->contains('name', 'admin')) {
+            !Auth::user()->hasRole('requester') && 
+            !Auth::user()->hasRole('admin')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -711,8 +711,8 @@ class PurchaseRequisitionController extends Controller
         
         // Check if user has permission to view purchase requisitions
         if (!Auth::user()->hasPermission('purchase_requisition.read') && 
-            !Auth::user()->roles->contains('name', 'requester') && 
-            !Auth::user()->roles->contains('name', 'admin')) {
+            !Auth::user()->hasRole('requester') && 
+            !Auth::user()->hasRole('admin')) {
             abort(403, 'Unauthorized action.');
         }
 
@@ -1082,7 +1082,7 @@ class PurchaseRequisitionController extends Controller
             'prepared_by_id' => 'required|exists:users,id',
             'io_number' => 'required|string|max:50',
             'cost_center' => 'required|string|max:50',
-            'supplier_vendor_id' => 'required|exists:vendors,id',
+            'supplier_vendor_id' => 'required|exists:vendors,id,company_id,' . session('company_id'),
             'reference_document' => 'nullable|string|max:255',
             
             // Items
@@ -1237,7 +1237,7 @@ class PurchaseRequisitionController extends Controller
             'prepared_by_id' => 'required|exists:users,id',
             'io_number' => 'required|string|max:50',
             'cost_center' => 'required|string|max:50',
-            'supplier_vendor_id' => 'required|exists:vendors,id',
+            'supplier_vendor_id' => 'required|exists:vendors,id,company_id,' . session('company_id'),
             'reference_document' => 'nullable|string|max:255',
             
             'items' => 'required|array|min:1',

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\SlaTracking;
+use App\Models\TermsOfReference;
 use App\Models\PurchaseRequisition;
 use App\Models\PurchaseOrder;
 use Carbon\Carbon;
@@ -87,7 +88,7 @@ class SlaService
         $actualDays = $this->calculateWorkingDays($startDate, $endDate);
         $standardDays = $this->getSlaStandardDays($pr->procurement_method);
 
-        $percentage = ($actualDays / $standardDays) * 100;
+        $percentage = $standardDays > 0 ? ($actualDays / $standardDays) * 100 : 0;
         $grade = $this->calculateGrade($percentage);
         $daysDiff = $actualDays - $standardDays;
         $status = $daysDiff <= 0 ? 'on_time' : 'late';
@@ -100,6 +101,45 @@ class SlaService
             [
                 'company_id' => $pr->company_id,
                 'procurement_method' => $pr->procurement_method,
+                'sla_standard_days' => $standardDays,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'actual_working_days' => $actualDays,
+                'sla_percentage' => round($percentage, 2),
+                'sla_grade' => $grade,
+                'days_difference' => $daysDiff,
+                'status' => $status,
+            ]
+        );
+    }
+
+    /**
+     * Track TOR Submission to Approval
+     */
+    public function trackTorSubmissionToApproval(TermsOfReference $tor): ?SlaTracking
+    {
+        if (!$tor->submitted_at || !$tor->approved_at) {
+            return null;
+        }
+
+        $startDate = Carbon::parse($tor->submitted_at);
+        $endDate = Carbon::parse($tor->approved_at);
+        $actualDays = $this->calculateWorkingDays($startDate, $endDate);
+        $standardDays = $this->getSlaStandardDays($tor->procurement_method);
+
+        $percentage = $standardDays > 0 ? ($actualDays / $standardDays) * 100 : 0;
+        $grade = $this->calculateGrade($percentage);
+        $daysDiff = $actualDays - $standardDays;
+        $status = $daysDiff <= 0 ? 'on_time' : 'late';
+
+        return SlaTracking::updateOrCreate(
+            [
+                'tor_id' => $tor->id,
+                'stage' => 'tor_submission_to_approval',
+            ],
+            [
+                'company_id' => $tor->company_id,
+                'procurement_method' => $tor->procurement_method,
                 'sla_standard_days' => $standardDays,
                 'start_date' => $startDate,
                 'end_date' => $endDate,
@@ -127,7 +167,7 @@ class SlaService
         $actualDays = $this->calculateWorkingDays($startDate, $endDate);
         $standardDays = $this->getSlaStandardDays($po->procurement_method);
 
-        $percentage = ($actualDays / $standardDays) * 100;
+        $percentage = $standardDays > 0 ? ($actualDays / $standardDays) * 100 : 0;
         $grade = $this->calculateGrade($percentage);
         $daysDiff = $actualDays - $standardDays;
         $status = $daysDiff <= 0 ? 'on_time' : 'late';
@@ -169,7 +209,7 @@ class SlaService
         $actualDays = $this->calculateWorkingDays($startDate, $endDate);
         $standardDays = $this->getSlaStandardDays($po->procurement_method);
 
-        $percentage = ($actualDays / $standardDays) * 100;
+        $percentage = $standardDays > 0 ? ($actualDays / $standardDays) * 100 : 0;
         $grade = $this->calculateGrade($percentage);
         $daysDiff = $actualDays - $standardDays;
         $status = $daysDiff <= 0 ? 'on_time' : 'late';

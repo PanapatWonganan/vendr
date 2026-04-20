@@ -11,6 +11,7 @@ class SlaTracking extends Model
         'company_id',
         'purchase_requisition_id',
         'purchase_order_id',
+        'tor_id',
         'stage',
         'procurement_method',
         'sla_standard_days',
@@ -44,6 +45,11 @@ class SlaTracking extends Model
     public function purchaseOrder(): BelongsTo
     {
         return $this->belongsTo(PurchaseOrder::class);
+    }
+
+    public function termsOfReference(): BelongsTo
+    {
+        return $this->belongsTo(TermsOfReference::class, 'tor_id');
     }
 
     // Helper Methods
@@ -80,6 +86,7 @@ class SlaTracking extends Model
             'pr_approval_to_po_creation' => 'PR Approval → PO Creation',
             'po_creation_to_approval' => 'PO Creation → Approval',
             'full_cycle' => 'Full Cycle (PR → PO Approved)',
+            'tor_submission_to_approval' => 'TOR Submission → Approval',
             default => $this->stage,
         };
     }
