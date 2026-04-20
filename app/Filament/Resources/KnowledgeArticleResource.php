@@ -89,7 +89,10 @@ class KnowledgeArticleResource extends Resource
                             ->label('ไฟล์แนบ')
                             ->visible(fn (Forms\Get $get) => $get('type') === KnowledgeArticle::TYPE_DOCUMENT)
                             ->acceptedFileTypes(['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'image/*'])
+                            ->disk('public')
                             ->directory('knowledge-base')
+                            ->downloadable()
+                            ->openable()
                             ->helperText('รองรับไฟล์ PDF, Word, และรูปภาพ'),
                     ])
                     ->columns(1),

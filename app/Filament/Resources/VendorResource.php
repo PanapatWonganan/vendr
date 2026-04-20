@@ -79,6 +79,7 @@ class VendorResource extends Resource
                 Forms\Components\FileUpload::make('documents')
                     ->label('เอกสาร')
                     ->multiple()
+                    ->disk('public')
                     ->directory('vendor-documents')
                     ->acceptedFileTypes(['application/pdf', 'image/*', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'])
                     ->maxSize(10240) // 10MB per file
