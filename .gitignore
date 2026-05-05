@@ -21,3 +21,24 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Claude Code — personal notes & runtime artifacts
+/CLAUDE.local.md
+/.claude/settings.local.json
+/.claude/logs/
+/.claude/agents/
+/.claude/commands/
+/.claude/hooks/
+/.claude/skills/
+/storage/tinker-tmp/
+
+# Stale backup/temp files (use git for history)
+*.backup
+*.bak
+*.orig
+*.tmp
+.DS_Store
+
+# Local Excel imports / data dumps (not for repo)
+/*.xlsx
+/*.sql

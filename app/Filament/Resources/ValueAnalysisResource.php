@@ -305,6 +305,24 @@ class ValueAnalysisResource extends Resource
         ];
     }
 
+    public static function getEloquentQuery(): Builder
+    {
+        $companyId = session('company_id');
+        $query = parent::getEloquentQuery();
+
+        // ValueAnalysis doesn't have company_id column directly — scope via related PR
+        if ($companyId) {
+            $query->whereHas('purchaseRequisition', function (Builder $q) use ($companyId) {
+                $q->where('company_id', $companyId);
+            });
+        } else {
+            // No company context → return empty result (defense in depth)
+            $query->whereRaw('1 = 0');
+        }
+
+        return $query;
+    }
+
     public static function getPages(): array
     {
         return [
