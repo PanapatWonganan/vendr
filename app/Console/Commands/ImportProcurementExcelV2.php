@@ -37,56 +37,88 @@ class ImportProcurementExcelV2 extends Command
     protected $signature = 'procurement:import-excel-v2
                             {file : Path to the Excel file}
                             {--force : Actually persist changes (default is dry-run)}
-                            {--company= : Default company_id when sheet rows omit it}';
+                            {--company= : Default company_id when sheet rows omit it}
+                            {--replace-existing : Delete + re-create PR/PO/GR/Milestone rows that already exist (matched by number)}
+                            {--auto-create-users : Auto-create users referenced by Committees that have no matching email}';
+
+    private const FX_FALLBACK = ['USD' => 35.0, 'EUR' => 38.0, 'JPY' => 0.24, 'CNY' => 5.0];
 
     protected $description = 'V2: Import historical PR / PO / GR / PaymentMilestone data from the Excel template (fixed PO/GR item issues)';
 
-    private const PR_STATUSES = ['draft','pending_approval','approved','rejected','completed','cancelled'];
-    private const PO_STATUSES = ['draft','pending_approval','approved','rejected','sent_to_supplier','acknowledged','partially_received','fully_received','closed','cancelled'];
-    private const GR_STATUSES = ['draft','pending_review','completed','returned','partially_returned','cancelled'];
-    private const INSPECTION_STATUSES = ['pending','passed','failed','partial'];
-    private const MILESTONE_STATUSES = ['pending','due','paid','overdue','cancelled'];
-    private const VENDOR_STATUSES = ['pending','approved','rejected','suspended'];
-    private const PROCUREMENT_METHODS = ['agreement_price','invitation_bid','open_bid','special_1','special_2','selection'];
-    private const WORK_TYPES = ['buy','hire','rent'];
-    private const FORM_CATEGORIES = ['act_based','law_based'];
-    private const CURRENCIES = ['THB','USD','EUR','JPY','CNY'];
-    private const COMMITTEE_ROLES = ['procurement','inspection','approver'];
+    private const PR_STATUSES = ['draft', 'pending_approval', 'approved', 'rejected', 'completed', 'cancelled'];
+
+    private const PO_STATUSES = ['draft', 'pending_approval', 'approved', 'rejected', 'sent_to_supplier', 'acknowledged', 'partially_received', 'fully_received', 'closed', 'cancelled'];
+
+    private const GR_STATUSES = ['draft', 'pending_review', 'completed', 'returned', 'partially_returned', 'cancelled'];
+
+    private const INSPECTION_STATUSES = ['pending', 'passed', 'failed', 'partial'];
+
+    private const MILESTONE_STATUSES = ['pending', 'due', 'paid', 'overdue', 'cancelled'];
+
+    private const VENDOR_STATUSES = ['pending', 'approved', 'rejected', 'suspended'];
+
+    private const PROCUREMENT_METHODS = ['agreement_price', 'invitation_bid', 'open_bid', 'special_1', 'special_2', 'selection'];
+
+    private const WORK_TYPES = ['buy', 'hire', 'rent'];
+
+    private const FORM_CATEGORIES = ['act_based', 'law_based'];
+
+    private const CURRENCIES = ['THB', 'USD', 'EUR', 'JPY', 'CNY'];
+
+    private const COMMITTEE_ROLES = ['procurement', 'inspection', 'approver'];
 
     private array $errors = [];
+
     private array $vendorCodeMap = [];
+
     private array $committeeUserMap = [];
+
     private array $committeeRoleMap = [];
+
     private array $prMap = [];
+
     private array $poMap = [];
-    /** @var array<int,int>  po_id => po_item_id (single line item created per PO) */
+
+    /** @var array<int,int> po_id => po_item_id (single line item created per PO) */
     private array $poItemMap = [];
+
     private array $userEmailMap = [];
+
     private int $defaultCompanyId = 2;
+
+    private bool $replaceExisting = false;
+
+    private bool $autoCreateUsers = false;
 
     public function handle(): int
     {
         $file = $this->argument('file');
         $force = (bool) $this->option('force');
-        if ($this->option('company')) $this->defaultCompanyId = (int) $this->option('company');
+        if ($this->option('company')) {
+            $this->defaultCompanyId = (int) $this->option('company');
+        }
+        $this->replaceExisting = (bool) $this->option('replace-existing');
+        $this->autoCreateUsers = (bool) $this->option('auto-create-users');
 
-        if (!is_file($file)) {
+        if (! is_file($file)) {
             $this->error("File not found: {$file}");
+
             return self::FAILURE;
         }
 
-        $this->info(($force ? '[REAL IMPORT V2]' : '[DRY-RUN V2]') . " Loading {$file} ...");
+        $this->info(($force ? '[REAL IMPORT V2]' : '[DRY-RUN V2]')." Loading {$file} ...");
 
         try {
             $reader = IOFactory::createReaderForFile($file);
             $reader->setReadDataOnly(true);
             $ss = $reader->load($file);
         } catch (\Throwable $e) {
-            $this->error('Failed to open spreadsheet: ' . $e->getMessage());
+            $this->error('Failed to open spreadsheet: '.$e->getMessage());
+
             return self::FAILURE;
         }
 
-        foreach (User::query()->select('id','email')->get() as $u) {
+        foreach (User::query()->select('id', 'email')->get() as $u) {
             $this->userEmailMap[strtolower($u->email)] = $u->id;
         }
 
@@ -99,10 +131,11 @@ class ImportProcurementExcelV2 extends Command
             $this->importGoodsReceipts($ss);
             $this->importPaymentMilestones($ss);
 
-            if (!empty($this->errors)) {
+            if (! empty($this->errors)) {
                 DB::rollBack();
                 $this->printErrors();
-                $this->error('Import aborted: ' . count($this->errors) . ' error(s) found.');
+                $this->error('Import aborted: '.count($this->errors).' error(s) found.');
+
                 return self::FAILURE;
             }
 
@@ -115,8 +148,9 @@ class ImportProcurementExcelV2 extends Command
             }
         } catch (\Throwable $e) {
             DB::rollBack();
-            $this->error('Fatal error: ' . $e->getMessage());
+            $this->error('Fatal error: '.$e->getMessage());
             $this->line($e->getTraceAsString());
+
             return self::FAILURE;
         }
 
@@ -127,70 +161,129 @@ class ImportProcurementExcelV2 extends Command
     private function importVendors($ss): void
     {
         $sh = $ss->getSheetByName('Vendors');
-        if (!$sh) { $this->addError('Vendors', 0, 'Sheet missing'); return; }
+        if (! $sh) {
+            $this->addError('Vendors', 0, 'Sheet missing');
+
+            return;
+        }
         $highest = $sh->getHighestRowAndColumn();
         $created = $updated = 0;
-        $existingByTax = Vendor::query()->whereNotNull('tax_id')->pluck('id','tax_id')->all();
+        $existingByTax = Vendor::query()->whereNotNull('tax_id')->pluck('id', 'tax_id')->all();
 
         for ($r = 4; $r <= $highest['row']; $r++) {
-            if ($this->rowIsEmpty($sh, $r, $highest['column'])) continue;
+            if ($this->rowIsEmpty($sh, $r, $highest['column'])) {
+                continue;
+            }
 
-            $code = $this->str($sh,'A',$r); $name = $this->str($sh,'B',$r); $taxId = $this->str($sh,'C',$r);
-            $workCat=$this->str($sh,'D',$r); $contact=$this->str($sh,'E',$r); $phone=$this->str($sh,'F',$r);
-            $email=$this->str($sh,'G',$r); $address=$this->str($sh,'H',$r);
-            $status=$this->str($sh,'I',$r) ?: 'approved';
+            $code = $this->str($sh, 'A', $r);
+            $name = $this->str($sh, 'B', $r);
+            $taxId = $this->str($sh, 'C', $r);
+            $workCat = $this->str($sh, 'D', $r);
+            $contact = $this->str($sh, 'E', $r);
+            $phone = $this->str($sh, 'F', $r);
+            $email = $this->str($sh, 'G', $r);
+            $address = $this->str($sh, 'H', $r);
+            $status = $this->str($sh, 'I', $r) ?: 'approved';
 
-            if ($code === '')  { $this->addError('Vendors', $r, 'vendor_code is required'); continue; }
-            if ($name === '')  { $this->addError('Vendors', $r, 'company_name is required'); continue; }
-            if (!in_array($status, self::VENDOR_STATUSES, true)) { $this->addError('Vendors', $r, "invalid status '{$status}'"); continue; }
-            if (isset($this->vendorCodeMap[$code])) { $this->addError('Vendors', $r, "duplicate vendor_code '{$code}' in file"); continue; }
+            if ($code === '') {
+                $this->addError('Vendors', $r, 'vendor_code is required');
 
-            $effectiveTax = $taxId !== '' ? $taxId : 'IMPORT-' . $code;
+                continue;
+            }
+            if ($name === '') {
+                $this->addError('Vendors', $r, 'company_name is required');
+
+                continue;
+            }
+            if (! in_array($status, self::VENDOR_STATUSES, true)) {
+                $this->addError('Vendors', $r, "invalid status '{$status}'");
+
+                continue;
+            }
+            if (isset($this->vendorCodeMap[$code])) {
+                $this->addError('Vendors', $r, "duplicate vendor_code '{$code}' in file");
+
+                continue;
+            }
+
+            $effectiveTax = $taxId !== '' ? $taxId : 'IMPORT-'.$code;
             $payload = [
-                'company_id'=>$this->defaultCompanyId,'company_name'=>$name,'tax_id'=>$effectiveTax,
-                'address'=>$address ?: null,'work_category'=>$workCat ?: null,
-                'contact_name'=>$contact ?: null,'contact_phone'=>$phone ?: null,
-                'contact_email'=>$email ?: null,'status'=>$status,
+                'company_id' => $this->defaultCompanyId, 'company_name' => $name, 'tax_id' => $effectiveTax,
+                'address' => $address !== '' ? $address : '-', 'work_category' => $workCat ?: null,
+                'contact_name' => $contact ?: null, 'contact_phone' => $phone ?: null,
+                'contact_email' => $email ?: null, 'status' => $status,
             ];
 
             if (isset($existingByTax[$effectiveTax])) {
                 $vendorId = $existingByTax[$effectiveTax];
-                Vendor::where('id',$vendorId)->update($payload); $updated++;
+                Vendor::where('id', $vendorId)->update($payload);
+                $updated++;
             } else {
-                $vendor = Vendor::create($payload); $vendorId = $vendor->id;
-                $existingByTax[$effectiveTax] = $vendorId; $created++;
+                $vendor = Vendor::create($payload);
+                $vendorId = $vendor->id;
+                $existingByTax[$effectiveTax] = $vendorId;
+                $created++;
             }
             $this->vendorCodeMap[$code] = $vendorId;
         }
-        $this->info("Vendors: created={$created}, updated={$updated}, mapped=" . count($this->vendorCodeMap));
+        $this->info("Vendors: created={$created}, updated={$updated}, mapped=".count($this->vendorCodeMap));
     }
 
     // -------- Committees --------
     private function importCommittees($ss): void
     {
         $sh = $ss->getSheetByName('Committees');
-        if (!$sh) { $this->addError('Committees', 0, 'Sheet missing'); return; }
+        if (! $sh) {
+            $this->addError('Committees', 0, 'Sheet missing');
+
+            return;
+        }
         $highest = $sh->getHighestRowAndColumn();
         $resolved = 0;
 
         for ($r = 4; $r <= $highest['row']; $r++) {
-            if ($this->rowIsEmpty($sh, $r, $highest['column'])) continue;
+            if ($this->rowIsEmpty($sh, $r, $highest['column'])) {
+                continue;
+            }
 
-            $code=$this->str($sh,'A',$r); $name=$this->str($sh,'B',$r);
-            $email=strtolower($this->str($sh,'C',$r));
-            $role=$this->str($sh,'D',$r) ?: 'procurement';
+            $code = $this->str($sh, 'A', $r);
+            $name = $this->str($sh, 'B', $r);
+            $email = strtolower($this->str($sh, 'C', $r));
+            $role = $this->str($sh, 'D', $r) ?: 'procurement';
 
-            if ($code === '')  { $this->addError('Committees', $r, 'committee_code is required'); continue; }
-            if ($email === '') { $this->addError('Committees', $r, 'email is required'); continue; }
-            if (!in_array($role, self::COMMITTEE_ROLES, true)) {
-                $this->addError('Committees', $r, "invalid default_role '{$role}'"); continue;
+            if ($code === '') {
+                $this->addError('Committees', $r, 'committee_code is required');
+
+                continue;
+            }
+            if ($email === '') {
+                $this->addError('Committees', $r, 'email is required');
+
+                continue;
+            }
+            if (! in_array($role, self::COMMITTEE_ROLES, true)) {
+                $this->addError('Committees', $r, "invalid default_role '{$role}'");
+
+                continue;
             }
             if (isset($this->committeeUserMap[$code])) {
-                $this->addError('Committees', $r, "duplicate committee_code '{$code}' in file"); continue;
-            }
-            if (!isset($this->userEmailMap[$email])) {
-                $this->addError('Committees', $r, "email '{$email}' has no matching user (committee_code={$code}, name={$name})");
+                $this->addError('Committees', $r, "duplicate committee_code '{$code}' in file");
+
                 continue;
+            }
+            if (! isset($this->userEmailMap[$email])) {
+                if (! $this->autoCreateUsers) {
+                    $this->addError('Committees', $r, "email '{$email}' has no matching user (committee_code={$code}, name={$name})");
+
+                    continue;
+                }
+                $newUser = User::create([
+                    'name' => $name !== '' ? $name : $email,
+                    'email' => $email,
+                    'password' => bcrypt(\Illuminate\Support\Str::random(24)),
+                ]);
+                $this->userEmailMap[$email] = $newUser->id;
+                $this->line("  + auto-created user '{$email}' as id={$newUser->id}");
             }
             $this->committeeUserMap[$code] = $this->userEmailMap[$email];
             $this->committeeRoleMap[$code] = $role;
@@ -203,93 +296,174 @@ class ImportProcurementExcelV2 extends Command
     private function importPurchaseRequisitions($ss): void
     {
         $sh = $ss->getSheetByName('PurchaseRequisitions');
-        if (!$sh) { $this->addError('PurchaseRequisitions', 0, 'Sheet missing'); return; }
+        if (! $sh) {
+            $this->addError('PurchaseRequisitions', 0, 'Sheet missing');
+
+            return;
+        }
         $highest = $sh->getHighestRowAndColumn();
         $created = 0;
 
         for ($r = 4; $r <= $highest['row']; $r++) {
-            if ($this->rowIsEmpty($sh, $r, $highest['column'])) continue;
-
-            $prNumber=$this->str($sh,'A',$r); $title=$this->str($sh,'B',$r); $desc=$this->str($sh,'C',$r);
-            $companyId=(int)($this->str($sh,'D',$r) ?: $this->defaultCompanyId);
-            $deptId=(int)$this->str($sh,'E',$r);
-            $reqEmail=strtolower($this->str($sh,'F',$r));
-            $method=$this->str($sh,'G',$r);
-            $category=$this->str($sh,'H',$r) ?: null;
-            $workType=$this->str($sh,'I',$r) ?: null;
-            $formCat=$this->str($sh,'J',$r) ?: null;
-            $clause=$this->str($sh,'K',$r);
-            $currency=strtoupper($this->str($sh,'L',$r) ?: 'THB');
-            $budget=$this->num($sh,'M',$r); $negPrice=$this->num($sh,'N',$r);
-            $reqDate=$this->date($sh,'O',$r); $submitted=$this->date($sh,'P',$r);
-            $approved=$this->date($sh,'Q',$r); $required=$this->date($sh,'R',$r);
-            $apprEmail=strtolower($this->str($sh,'S',$r));
-            $procCom=$this->str($sh,'T',$r); $inspCom=$this->str($sh,'U',$r);
-            $status=$this->str($sh,'V',$r) ?: 'completed';
-            $notes=$this->str($sh,'W',$r);
-
-            $bad=false;
-            if ($prNumber === '') { $this->addError('PR', $r, 'pr_number required'); $bad=true; }
-            if ($title === '')    { $this->addError('PR', $r, 'title required'); $bad=true; }
-            if ($deptId === 0 || !Department::find($deptId)) { $this->addError('PR', $r, "department_id {$deptId} not found"); $bad=true; }
-            if (!isset($this->userEmailMap[$reqEmail])) { $this->addError('PR', $r, "requester_email '{$reqEmail}' has no user"); $bad=true; }
-            if (!in_array($method, self::PROCUREMENT_METHODS, true)) { $this->addError('PR', $r, "invalid procurement_method '{$method}'"); $bad=true; }
-            if (!in_array($status, self::PR_STATUSES, true)) { $this->addError('PR', $r, "invalid status '{$status}'"); $bad=true; }
-            if (!in_array($currency, self::CURRENCIES, true)) { $this->addError('PR', $r, "invalid currency '{$currency}'"); $bad=true; }
-            if ($workType !== null && !in_array($workType, self::WORK_TYPES, true)) { $this->addError('PR', $r, "invalid work_type '{$workType}'"); $bad=true; }
-            if ($formCat !== null && !in_array($formCat, self::FORM_CATEGORIES, true)) { $this->addError('PR', $r, "invalid form_category '{$formCat}'"); $bad=true; }
-            if ($reqDate === null) { $this->addError('PR', $r, 'request_date required'); $bad=true; }
-            if ($required === null){ $this->addError('PR', $r, 'required_date required'); $bad=true; }
-            if ($budget === null)  { $this->addError('PR', $r, 'procurement_budget required'); $bad=true; }
-            if (isset($this->prMap[$prNumber])) { $this->addError('PR', $r, "duplicate pr_number '{$prNumber}' in file"); $bad=true; }
-
-            $procComId = $inspComId = $apprUserId = null;
-            if ($procCom !== '') {
-                if (!isset($this->committeeUserMap[$procCom])) { $this->addError('PR', $r, "procurement_committee_code '{$procCom}' not in Committees"); $bad=true; }
-                else $procComId = $this->committeeUserMap[$procCom];
-            }
-            if ($inspCom !== '') {
-                if (!isset($this->committeeUserMap[$inspCom])) { $this->addError('PR', $r, "inspection_committee_code '{$inspCom}' not in Committees"); $bad=true; }
-                else $inspComId = $this->committeeUserMap[$inspCom];
-            }
-            if ($apprEmail !== '') {
-                if (!isset($this->userEmailMap[$apprEmail])) { $this->addError('PR', $r, "pr_approver_email '{$apprEmail}' has no user"); $bad=true; }
-                else $apprUserId = $this->userEmailMap[$apprEmail];
-            }
-            if ($bad) continue;
-
-            if (PurchaseRequisition::where('pr_number',$prNumber)->where('company_id',$companyId)->exists()) {
-                $this->addError('PR', $r, "pr_number '{$prNumber}' already exists in DB (company_id={$companyId})");
+            if ($this->rowIsEmpty($sh, $r, $highest['column'])) {
                 continue;
             }
 
+            $prNumber = $this->str($sh, 'A', $r);
+            $title = $this->str($sh, 'B', $r);
+            $desc = $this->str($sh, 'C', $r);
+            $companyId = (int) ($this->str($sh, 'D', $r) ?: $this->defaultCompanyId);
+            $deptId = (int) $this->str($sh, 'E', $r);
+            $reqEmail = strtolower($this->str($sh, 'F', $r));
+            $method = $this->str($sh, 'G', $r);
+            $category = $this->str($sh, 'H', $r) ?: null;
+            $workType = $this->str($sh, 'I', $r) ?: null;
+            $formCat = $this->str($sh, 'J', $r) ?: null;
+            $clause = $this->str($sh, 'K', $r);
+            $currency = strtoupper($this->str($sh, 'L', $r) ?: 'THB');
+            $budget = $this->num($sh, 'M', $r);
+            $negPrice = $this->num($sh, 'N', $r);
+            $reqDate = $this->date($sh, 'O', $r);
+            $submitted = $this->date($sh, 'P', $r);
+            $approved = $this->date($sh, 'Q', $r);
+            $required = $this->date($sh, 'R', $r);
+            $apprEmail = strtolower($this->str($sh, 'S', $r));
+            $procCom = $this->str($sh, 'T', $r);
+            $inspCom = $this->str($sh, 'U', $r);
+            $status = $this->str($sh, 'V', $r) ?: 'completed';
+            $notes = $this->str($sh, 'W', $r);
+
+            $bad = false;
+            if ($prNumber === '') {
+                $this->addError('PR', $r, 'pr_number required');
+                $bad = true;
+            }
+            if ($title === '') {
+                $this->addError('PR', $r, 'title required');
+                $bad = true;
+            }
+            if ($deptId === 0 || ! Department::find($deptId)) {
+                $this->addError('PR', $r, "department_id {$deptId} not found");
+                $bad = true;
+            }
+            if (! isset($this->userEmailMap[$reqEmail])) {
+                if ($this->autoCreateUsers && $reqEmail !== '') {
+                    $newUser = User::create([
+                        'name' => $reqEmail,
+                        'email' => $reqEmail,
+                        'password' => bcrypt(\Illuminate\Support\Str::random(24)),
+                    ]);
+                    $this->userEmailMap[$reqEmail] = $newUser->id;
+                    $this->line("  + PR R{$r}: auto-created user '{$reqEmail}' as id={$newUser->id}");
+                } else {
+                    $this->addError('PR', $r, "requester_email '{$reqEmail}' has no user");
+                    $bad = true;
+                }
+            }
+            if (! in_array($method, self::PROCUREMENT_METHODS, true)) {
+                $this->addError('PR', $r, "invalid procurement_method '{$method}'");
+                $bad = true;
+            }
+            if (! in_array($status, self::PR_STATUSES, true)) {
+                $this->addError('PR', $r, "invalid status '{$status}'");
+                $bad = true;
+            }
+            if (! in_array($currency, self::CURRENCIES, true)) {
+                $this->addError('PR', $r, "invalid currency '{$currency}'");
+                $bad = true;
+            }
+            if ($workType !== null && ! in_array($workType, self::WORK_TYPES, true)) {
+                $this->addError('PR', $r, "invalid work_type '{$workType}'");
+                $bad = true;
+            }
+            if ($formCat !== null && ! in_array($formCat, self::FORM_CATEGORIES, true)) {
+                $this->addError('PR', $r, "invalid form_category '{$formCat}'");
+                $bad = true;
+            }
+            if ($reqDate === null) {
+                $this->addError('PR', $r, 'request_date required');
+                $bad = true;
+            }
+            if ($required === null) {
+                $this->addError('PR', $r, 'required_date required');
+                $bad = true;
+            }
+            if ($budget === null) {
+                $this->addError('PR', $r, 'procurement_budget required');
+                $bad = true;
+            }
+            if (isset($this->prMap[$prNumber])) {
+                $this->addError('PR', $r, "duplicate pr_number '{$prNumber}' in file");
+                $bad = true;
+            }
+
+            $procComId = $inspComId = $apprUserId = null;
+            if ($procCom !== '') {
+                if (! isset($this->committeeUserMap[$procCom])) {
+                    $this->addError('PR', $r, "procurement_committee_code '{$procCom}' not in Committees");
+                    $bad = true;
+                } else {
+                    $procComId = $this->committeeUserMap[$procCom];
+                }
+            }
+            if ($inspCom !== '') {
+                if (! isset($this->committeeUserMap[$inspCom])) {
+                    $this->addError('PR', $r, "inspection_committee_code '{$inspCom}' not in Committees");
+                    $bad = true;
+                } else {
+                    $inspComId = $this->committeeUserMap[$inspCom];
+                }
+            }
+            if ($apprEmail !== '') {
+                if (! isset($this->userEmailMap[$apprEmail])) {
+                    $this->addError('PR', $r, "pr_approver_email '{$apprEmail}' has no user");
+                    $bad = true;
+                } else {
+                    $apprUserId = $this->userEmailMap[$apprEmail];
+                }
+            }
+            if ($bad) {
+                continue;
+            }
+
+            $existingPr = PurchaseRequisition::where('pr_number', $prNumber)->where('company_id', $companyId)->first();
+            if ($existingPr) {
+                if (! $this->replaceExisting) {
+                    $this->line("  ~ PR R{$r}: skipping existing pr_number '{$prNumber}' (use --replace-existing to overwrite)");
+                    $this->prMap[$prNumber] = $existingPr->id;
+
+                    continue;
+                }
+                $this->cascadeDeletePr($existingPr->id, $r, $prNumber);
+            }
+
             $requesterId = $this->userEmailMap[$reqEmail];
-            $pr = new PurchaseRequisition();
+            $pr = new PurchaseRequisition;
             $pr->company_id = $companyId;
-            $pr->pr_number  = $prNumber;
-            $pr->title      = $title;
-            $pr->description= $desc ?: null;
+            $pr->pr_number = $prNumber;
+            $pr->title = $title;
+            $pr->description = $desc ?: null;
             $pr->department_id = $deptId;
-            $pr->requester_id  = $requesterId;
-            $pr->created_by    = $requesterId;
-            $pr->request_date  = $reqDate;
+            $pr->requester_id = $requesterId;
+            $pr->created_by = $requesterId;
+            $pr->request_date = $reqDate;
             $pr->required_date = $required;
             $pr->procurement_method = $method;
-            $pr->category   = $category;
-            $pr->work_type  = $workType;
+            $pr->category = $category;
+            $pr->work_type = $workType;
             $pr->form_category = $formCat;
-            $pr->currency   = $currency;
+            $pr->currency = $currency;
             $pr->procurement_budget = $budget;
-            $pr->total_amount       = $budget;
+            $pr->total_amount = $budget;
             $pr->procurement_committee_id = $procComId;
-            $pr->inspection_committee_id  = $inspComId;
+            $pr->inspection_committee_id = $inspComId;
             $pr->pr_approver_id = $apprUserId;
-            $pr->status         = $status;
-            $pr->submitted_at   = $submitted ?: $reqDate;
+            $pr->status = $status;
+            $pr->submitted_at = $submitted ?: $reqDate;
             $pr->pr_approved_at = $approved;
-            $pr->approved_at    = $approved;
-            $pr->approved_by    = $apprUserId;
-            $pr->notes = trim('Imported from Excel. ' . ($notes ?? ''));
+            $pr->approved_at = $approved;
+            $pr->approved_by = $apprUserId;
+            $pr->notes = trim('Imported from Excel. '.($notes ?? ''));
             $pr->saveQuietly();
             $this->prMap[$prNumber] = $pr->id;
 
@@ -310,73 +484,142 @@ class ImportProcurementExcelV2 extends Command
                     'updated_at' => now(),
                 ]);
             } catch (\Throwable $e) {
-                $this->addError('PR', $r, 'failed to insert PR item: ' . $e->getMessage());
+                $this->addError('PR', $r, 'failed to insert PR item: '.$e->getMessage());
             }
 
             $created++;
         }
-        $this->info("PR: created={$created}, mapped=" . count($this->prMap));
+        $this->info("PR: created={$created}, mapped=".count($this->prMap));
     }
 
     // -------- PO --------
     private function importPurchaseOrders($ss): void
     {
         $sh = $ss->getSheetByName('PurchaseOrders');
-        if (!$sh) { $this->addError('PurchaseOrders', 0, 'Sheet missing'); return; }
+        if (! $sh) {
+            $this->addError('PurchaseOrders', 0, 'Sheet missing');
+
+            return;
+        }
         $highest = $sh->getHighestRowAndColumn();
         $created = 0;
 
         for ($r = 4; $r <= $highest['row']; $r++) {
-            if ($this->rowIsEmpty($sh, $r, $highest['column'])) continue;
+            if ($this->rowIsEmpty($sh, $r, $highest['column'])) {
+                continue;
+            }
 
-            $poNumber=$this->str($sh,'A',$r); $prNumber=$this->str($sh,'B',$r); $vendorCode=$this->str($sh,'C',$r);
-            $poTitle=$this->str($sh,'D',$r);
-            $workType=$this->str($sh,'E',$r) ?: null;
-            $method=$this->str($sh,'F',$r) ?: null;
-            $orderDate=$this->date($sh,'G',$r); $approvedAt=$this->date($sh,'H',$r);
-            $totalAmt=$this->num($sh,'I',$r);
-            $currency=strtoupper($this->str($sh,'J',$r) ?: 'THB');
-            $exchange=$this->num($sh,'K',$r); $stamp=$this->num($sh,'L',$r);
-            $startDate=$this->date($sh,'M',$r); $endDate=$this->date($sh,'N',$r);
-            $totalPhases=(int)$this->str($sh,'O',$r);
-            $deliveryLoc=$this->str($sh,'P',$r);
-            $payTerms=$this->str($sh,'Q',$r);
-            $inspCom=$this->str($sh,'R',$r);
-            $status=$this->str($sh,'S',$r) ?: 'closed';
-            $notes=$this->str($sh,'T',$r);
+            $poNumber = $this->str($sh, 'A', $r);
+            $prNumber = $this->str($sh, 'B', $r);
+            $vendorCode = $this->str($sh, 'C', $r);
+            $poTitle = $this->str($sh, 'D', $r);
+            $workType = $this->str($sh, 'E', $r) ?: null;
+            $method = $this->str($sh, 'F', $r) ?: null;
+            $orderDate = $this->date($sh, 'G', $r);
+            $approvedAt = $this->date($sh, 'H', $r);
+            $totalAmt = $this->num($sh, 'I', $r);
+            $currency = strtoupper($this->str($sh, 'J', $r) ?: 'THB');
+            $exchange = $this->num($sh, 'K', $r);
+            $stamp = $this->num($sh, 'L', $r);
+            $startDate = $this->date($sh, 'M', $r);
+            $endDate = $this->date($sh, 'N', $r);
+            $totalPhases = (int) $this->str($sh, 'O', $r);
+            $deliveryLoc = $this->str($sh, 'P', $r);
+            $payTerms = $this->str($sh, 'Q', $r);
+            $inspCom = $this->str($sh, 'R', $r);
+            $status = $this->str($sh, 'S', $r) ?: 'closed';
+            $notes = $this->str($sh, 'T', $r);
 
-            $bad=false;
-            if ($poNumber === '')  { $this->addError('PO', $r, 'po_number required'); $bad=true; }
-            if ($prNumber === '')  { $this->addError('PO', $r, 'pr_number required'); $bad=true; }
-            if ($vendorCode === ''){ $this->addError('PO', $r, 'vendor_code required'); $bad=true; }
-            if ($orderDate === null) { $this->addError('PO', $r, 'order_date required'); $bad=true; }
-            if ($totalAmt === null){ $this->addError('PO', $r, 'total_amount required'); $bad=true; }
-            if (!in_array($currency, self::CURRENCIES, true)) { $this->addError('PO', $r, "invalid currency '{$currency}'"); $bad=true; }
-            if (!in_array($status, self::PO_STATUSES, true)) { $this->addError('PO', $r, "invalid status '{$status}'"); $bad=true; }
-            if ($method !== null && !in_array($method, self::PROCUREMENT_METHODS, true)) { $this->addError('PO', $r, "invalid procurement_method '{$method}'"); $bad=true; }
-            if ($workType !== null && !in_array($workType, self::WORK_TYPES, true)) { $this->addError('PO', $r, "invalid work_type '{$workType}'"); $bad=true; }
-            if ($currency !== 'THB' && ($exchange === null || $exchange <= 0)) { $this->addError('PO', $r, "exchange_rate required when currency != THB"); $bad=true; }
-            if (!isset($this->prMap[$prNumber])) { $this->addError('PO', $r, "pr_number '{$prNumber}' not found in PR sheet"); $bad=true; }
-            if (!isset($this->vendorCodeMap[$vendorCode])) { $this->addError('PO', $r, "vendor_code '{$vendorCode}' not found in Vendors sheet"); $bad=true; }
-            if (isset($this->poMap[$poNumber])) { $this->addError('PO', $r, "duplicate po_number '{$poNumber}' in file"); $bad=true; }
+            $bad = false;
+            if ($poNumber === '') {
+                $this->addError('PO', $r, 'po_number required');
+                $bad = true;
+            }
+            if ($prNumber === '') {
+                $this->addError('PO', $r, 'pr_number required');
+                $bad = true;
+            }
+            if ($vendorCode === '') {
+                $this->addError('PO', $r, 'vendor_code required');
+                $bad = true;
+            }
+            if ($orderDate === null) {
+                $this->addError('PO', $r, 'order_date required');
+                $bad = true;
+            }
+            if ($totalAmt === null) {
+                $this->addError('PO', $r, 'total_amount required');
+                $bad = true;
+            }
+            if (! in_array($currency, self::CURRENCIES, true)) {
+                $this->addError('PO', $r, "invalid currency '{$currency}'");
+                $bad = true;
+            }
+            if (! in_array($status, self::PO_STATUSES, true)) {
+                $this->addError('PO', $r, "invalid status '{$status}'");
+                $bad = true;
+            }
+            if ($method !== null && ! in_array($method, self::PROCUREMENT_METHODS, true)) {
+                $this->addError('PO', $r, "invalid procurement_method '{$method}'");
+                $bad = true;
+            }
+            if ($workType !== null && ! in_array($workType, self::WORK_TYPES, true)) {
+                $this->addError('PO', $r, "invalid work_type '{$workType}'");
+                $bad = true;
+            }
+            if ($currency !== 'THB' && ($exchange === null || $exchange <= 0)) {
+                $fallback = self::FX_FALLBACK[$currency] ?? null;
+                if ($fallback !== null) {
+                    $exchange = $fallback;
+                    $this->line("  ~ PO R{$r}: applied fallback exchange_rate {$currency}={$exchange}");
+                } else {
+                    $this->addError('PO', $r, "exchange_rate required when currency != THB and no fallback for {$currency}");
+                    $bad = true;
+                }
+            }
+            if (! isset($this->prMap[$prNumber])) {
+                $this->addError('PO', $r, "pr_number '{$prNumber}' not found in PR sheet");
+                $bad = true;
+            }
+            if (! isset($this->vendorCodeMap[$vendorCode])) {
+                $this->addError('PO', $r, "vendor_code '{$vendorCode}' not found in Vendors sheet");
+                $bad = true;
+            }
+            if (isset($this->poMap[$poNumber])) {
+                $this->addError('PO', $r, "duplicate po_number '{$poNumber}' in file");
+                $bad = true;
+            }
 
             $inspComId = null;
             if ($inspCom !== '') {
-                if (!isset($this->committeeUserMap[$inspCom])) { $this->addError('PO', $r, "inspection_committee_code '{$inspCom}' not in Committees"); $bad=true; }
-                else $inspComId = $this->committeeUserMap[$inspCom];
+                if (! isset($this->committeeUserMap[$inspCom])) {
+                    $this->addError('PO', $r, "inspection_committee_code '{$inspCom}' not in Committees");
+                    $bad = true;
+                } else {
+                    $inspComId = $this->committeeUserMap[$inspCom];
+                }
             }
-            if ($bad) continue;
+            if ($bad) {
+                continue;
+            }
 
-            if (PurchaseOrder::where('po_number',$poNumber)->exists()) {
-                $this->addError('PO', $r, "po_number '{$poNumber}' already exists in DB"); continue;
+            $existingPo = PurchaseOrder::where('po_number', $poNumber)->first();
+            if ($existingPo) {
+                if (! $this->replaceExisting) {
+                    $this->line("  ~ PO R{$r}: skipping existing po_number '{$poNumber}'");
+                    $this->poMap[$poNumber] = $existingPo->id;
+
+                    continue;
+                }
+                $this->cascadeDeletePo($existingPo->id, $r, $poNumber);
             }
 
             $prId = $this->prMap[$prNumber];
-            $pr   = PurchaseRequisition::find($prId);
+            $pr = PurchaseRequisition::find($prId);
             $vendorId = $this->vendorCodeMap[$vendorCode];
-            $vendor   = Vendor::find($vendorId);
+            $vendor = Vendor::find($vendorId);
 
-            $po = new PurchaseOrder();
+            $po = new PurchaseOrder;
             $po->company_id = $pr->company_id;
             $po->purchase_requisition_id = $prId;
             $po->pr_id = $prId;
@@ -403,9 +646,9 @@ class ImportProcurementExcelV2 extends Command
             $po->approved_at = $approvedAt;
             $po->po_created_at = $orderDate;
             $po->po_approved_at = $approvedAt;
-            $po->closed_at = in_array($status, ['closed','fully_received']) ? ($endDate ?: $approvedAt) : null;
+            $po->closed_at = in_array($status, ['closed', 'fully_received']) ? ($endDate ?: $approvedAt) : null;
             $po->created_by = $pr->requester_id;
-            $po->notes = trim('Imported from Excel. ' . ($notes ?? ''));
+            $po->notes = trim('Imported from Excel. '.($notes ?? ''));
             $po->saveQuietly();
             $this->poMap[$poNumber] = $po->id;
 
@@ -434,7 +677,7 @@ class ImportProcurementExcelV2 extends Command
                 ]);
                 $this->poItemMap[$po->id] = $poItemId;
             } catch (\Throwable $e) {
-                $this->addError('PO', $r, 'failed to insert PO item: ' . $e->getMessage());
+                $this->addError('PO', $r, 'failed to insert PO item: '.$e->getMessage());
             }
 
             if ($inspComId) {
@@ -460,62 +703,120 @@ class ImportProcurementExcelV2 extends Command
 
             $created++;
         }
-        $this->info("PO: created={$created}, mapped=" . count($this->poMap));
+        $this->info("PO: created={$created}, mapped=".count($this->poMap));
     }
 
     // -------- GR --------
     private function importGoodsReceipts($ss): void
     {
         $sh = $ss->getSheetByName('GoodsReceipts');
-        if (!$sh) { $this->addError('GoodsReceipts', 0, 'Sheet missing'); return; }
+        if (! $sh) {
+            $this->addError('GoodsReceipts', 0, 'Sheet missing');
+
+            return;
+        }
         $highest = $sh->getHighestRowAndColumn();
         $created = 0;
         $seen = [];
 
         for ($r = 4; $r <= $highest['row']; $r++) {
-            if ($this->rowIsEmpty($sh, $r, $highest['column'])) continue;
+            if ($this->rowIsEmpty($sh, $r, $highest['column'])) {
+                continue;
+            }
 
-            $grNumber=$this->str($sh,'A',$r); $poNumber=$this->str($sh,'B',$r);
-            $milestone=(int)$this->str($sh,'C',$r);
-            $totalPhases=(int)$this->str($sh,'D',$r);
-            $receiptDate=$this->date($sh,'E',$r);
-            $delivDate=$this->date($sh,'F',$r);
-            $expectedDt=$this->date($sh,'G',$r);
-            $amount=$this->num($sh,'H',$r);
-            $docRef=$this->str($sh,'I',$r); $docDate=$this->date($sh,'J',$r);
-            $inspect=$this->str($sh,'K',$r) ?: 'passed';
-            $rcvEmail=strtolower($this->str($sh,'L',$r));
-            $status=$this->str($sh,'M',$r) ?: 'completed';
-            $notes=$this->str($sh,'N',$r);
+            $grNumber = $this->str($sh, 'A', $r);
+            $poNumber = $this->str($sh, 'B', $r);
+            $milestone = (int) $this->str($sh, 'C', $r);
+            $totalPhases = (int) $this->str($sh, 'D', $r);
+            $receiptDate = $this->date($sh, 'E', $r);
+            $delivDate = $this->date($sh, 'F', $r);
+            $expectedDt = $this->date($sh, 'G', $r);
+            $amount = $this->num($sh, 'H', $r);
+            $docRef = $this->str($sh, 'I', $r);
+            $docDate = $this->date($sh, 'J', $r);
+            $inspect = $this->str($sh, 'K', $r) ?: 'passed';
+            $rcvEmail = strtolower($this->str($sh, 'L', $r));
+            $status = $this->str($sh, 'M', $r) ?: 'completed';
+            $notes = $this->str($sh, 'N', $r);
 
-            $bad=false;
-            if ($grNumber === '') { $this->addError('GR', $r, 'gr_number required'); $bad=true; }
-            if ($poNumber === '') { $this->addError('GR', $r, 'po_number required'); $bad=true; }
-            if ($receiptDate === null) { $this->addError('GR', $r, 'receipt_date required'); $bad=true; }
-            if ($amount === null) { $this->addError('GR', $r, 'received_amount required'); $bad=true; }
-            if (!in_array($inspect, self::INSPECTION_STATUSES, true)) { $this->addError('GR', $r, "invalid inspection_status '{$inspect}'"); $bad=true; }
-            if (!in_array($status, self::GR_STATUSES, true)) { $this->addError('GR', $r, "invalid status '{$status}'"); $bad=true; }
-            if (!isset($this->poMap[$poNumber])) { $this->addError('GR', $r, "po_number '{$poNumber}' not found"); $bad=true; }
-            if (isset($seen[$grNumber])) { $this->addError('GR', $r, "duplicate gr_number '{$grNumber}' in file"); $bad=true; }
+            $bad = false;
+            if ($grNumber === '') {
+                $this->addError('GR', $r, 'gr_number required');
+                $bad = true;
+            }
+            if ($poNumber === '') {
+                $this->addError('GR', $r, 'po_number required');
+                $bad = true;
+            }
+            if ($receiptDate === null) {
+                if ($delivDate !== null) {
+                    $receiptDate = $delivDate;
+                    $this->line("  ~ GR R{$r}: receipt_date missing, fell back to delivery_date {$receiptDate}");
+                } else {
+                    $this->addError('GR', $r, 'receipt_date required (and delivery_date also missing)');
+                    $bad = true;
+                }
+            }
+            if ($amount === null) {
+                $this->addError('GR', $r, 'received_amount required');
+                $bad = true;
+            }
+            if (! in_array($inspect, self::INSPECTION_STATUSES, true)) {
+                $this->addError('GR', $r, "invalid inspection_status '{$inspect}'");
+                $bad = true;
+            }
+            if (! in_array($status, self::GR_STATUSES, true)) {
+                $this->addError('GR', $r, "invalid status '{$status}'");
+                $bad = true;
+            }
+            if (! isset($this->poMap[$poNumber])) {
+                $this->addError('GR', $r, "po_number '{$poNumber}' not found");
+                $bad = true;
+            }
+            if (isset($seen[$grNumber])) {
+                $this->addError('GR', $r, "duplicate gr_number '{$grNumber}' in file");
+                $bad = true;
+            }
             $rcvUserId = null;
             if ($rcvEmail !== '') {
-                if (!isset($this->userEmailMap[$rcvEmail])) { $this->addError('GR', $r, "received_by_email '{$rcvEmail}' has no user"); $bad=true; }
-                else $rcvUserId = $this->userEmailMap[$rcvEmail];
+                if (! isset($this->userEmailMap[$rcvEmail])) {
+                    if ($this->autoCreateUsers) {
+                        $newUser = User::create([
+                            'name' => $rcvEmail,
+                            'email' => $rcvEmail,
+                            'password' => bcrypt(\Illuminate\Support\Str::random(24)),
+                        ]);
+                        $this->userEmailMap[$rcvEmail] = $newUser->id;
+                        $this->line("  + GR R{$r}: auto-created user '{$rcvEmail}' as id={$newUser->id}");
+                    } else {
+                        $this->addError('GR', $r, "received_by_email '{$rcvEmail}' has no user");
+                        $bad = true;
+                    }
+                }
+                if (isset($this->userEmailMap[$rcvEmail])) {
+                    $rcvUserId = $this->userEmailMap[$rcvEmail];
+                }
             }
-            if ($bad) continue;
+            if ($bad) {
+                continue;
+            }
 
-            if (GoodsReceipt::where('gr_number',$grNumber)->exists()) {
-                $this->addError('GR', $r, "gr_number '{$grNumber}' already exists in DB"); continue;
+            if (GoodsReceipt::where('gr_number', $grNumber)->exists()) {
+                $this->addError('GR', $r, "gr_number '{$grNumber}' already exists in DB");
+
+                continue;
             }
 
             $poId = $this->poMap[$poNumber];
-            $po   = PurchaseOrder::find($poId);
+            $po = PurchaseOrder::find($poId);
             $poItemId = $this->poItemMap[$poId] ?? null;
             if ($poItemId === null) {
-                $this->addError('GR', $r, "internal: PO item id missing for po_id={$poId}"); continue;
+                $this->addError('GR', $r, "internal: PO item id missing for po_id={$poId}");
+
+                continue;
             }
 
-            $gr = new GoodsReceipt();
+            $gr = new GoodsReceipt;
             $gr->company_id = $po->company_id;
             $gr->gr_number = $grNumber;
             $gr->receipt_number = $grNumber;
@@ -527,7 +828,7 @@ class ImportProcurementExcelV2 extends Command
             $gr->milestone_description = $totalPhases ? "งวดที่ {$milestone}/{$totalPhases}" : null;
             $gr->milestone_percentage = $totalPhases ? round(100 / $totalPhases, 2) : null;
             $gr->inspection_status = $inspect;
-            $gr->inspection_notes = $docRef ? "เอกสารอ้างอิง: {$docRef}" . ($docDate ? " ({$docDate})" : '') : null;
+            $gr->inspection_notes = $docRef ? "เอกสารอ้างอิง: {$docRef}".($docDate ? " ({$docDate})" : '') : null;
             $gr->delivery_note_number = $docRef ?: null;
             $gr->status = $status;
             $gr->received_by = $rcvUserId;
@@ -537,7 +838,7 @@ class ImportProcurementExcelV2 extends Command
             $gr->quality_checked_by = $rcvUserId;
             $gr->quality_checked_at = $receiptDate;
             $gr->created_by = $rcvUserId;
-            $gr->notes = trim("Imported from Excel. delivery_date={$delivDate}, expected_delivery={$expectedDt}, amount={$amount}. " . ($notes ?? ''));
+            $gr->notes = trim("Imported from Excel. delivery_date={$delivDate}, expected_delivery={$expectedDt}, amount={$amount}. ".($notes ?? ''));
             $gr->saveQuietly();
             $seen[$grNumber] = true;
 
@@ -561,7 +862,7 @@ class ImportProcurementExcelV2 extends Command
                     'updated_at' => now(),
                 ]);
             } catch (\Throwable $e) {
-                $this->addError('GR', $r, 'failed to insert GR item: ' . $e->getMessage());
+                $this->addError('GR', $r, 'failed to insert GR item: '.$e->getMessage());
             }
 
             $created++;
@@ -573,43 +874,68 @@ class ImportProcurementExcelV2 extends Command
     private function importPaymentMilestones($ss): void
     {
         $sh = $ss->getSheetByName('PaymentMilestones');
-        if (!$sh) { $this->addError('PaymentMilestones', 0, 'Sheet missing'); return; }
+        if (! $sh) {
+            $this->addError('PaymentMilestones', 0, 'Sheet missing');
+
+            return;
+        }
         $highest = $sh->getHighestRowAndColumn();
         $created = 0;
 
         for ($r = 4; $r <= $highest['row']; $r++) {
-            if ($this->rowIsEmpty($sh, $r, $highest['column'])) continue;
-
-            $poNumber=$this->str($sh,'A',$r);
-            $mNumber=(int)$this->str($sh,'B',$r);
-            $title=$this->str($sh,'C',$r);
-            $percent=$this->num($sh,'D',$r);
-            $amount=$this->num($sh,'E',$r);
-            $dueDate=$this->date($sh,'F',$r);
-            $paidDate=$this->date($sh,'G',$r);
-            $paidAmt=$this->num($sh,'H',$r);
-            $payRef=$this->str($sh,'I',$r);
-            $status=$this->str($sh,'J',$r) ?: 'paid';
-            $notes=$this->str($sh,'K',$r);
-
-            $bad=false;
-            if ($poNumber === '') { $this->addError('PM', $r, 'po_number required'); $bad=true; }
-            if ($mNumber < 1)     { $this->addError('PM', $r, 'milestone_number must be >= 1'); $bad=true; }
-            if ($amount === null) { $this->addError('PM', $r, 'amount required'); $bad=true; }
-            if (!in_array($status, self::MILESTONE_STATUSES, true)) { $this->addError('PM', $r, "invalid status '{$status}'"); $bad=true; }
-            if (!isset($this->poMap[$poNumber])) { $this->addError('PM', $r, "po_number '{$poNumber}' not found"); $bad=true; }
-            if ($bad) continue;
-
-            $poId = $this->poMap[$poNumber];
-            $po   = PurchaseOrder::find($poId);
-
-            $existing = PaymentMilestone::where('purchase_order_id',$poId)
-                ->where('milestone_number',$mNumber)->first();
-            if ($existing) {
-                $this->addError('PM', $r, "milestone {$mNumber} for PO '{$poNumber}' already exists"); continue;
+            if ($this->rowIsEmpty($sh, $r, $highest['column'])) {
+                continue;
             }
 
-            $pm = new PaymentMilestone();
+            $poNumber = $this->str($sh, 'A', $r);
+            $mNumber = (int) $this->str($sh, 'B', $r);
+            $title = $this->str($sh, 'C', $r);
+            $percent = $this->num($sh, 'D', $r);
+            $amount = $this->num($sh, 'E', $r);
+            $dueDate = $this->date($sh, 'F', $r);
+            $paidDate = $this->date($sh, 'G', $r);
+            $paidAmt = $this->num($sh, 'H', $r);
+            $payRef = $this->str($sh, 'I', $r);
+            $status = $this->str($sh, 'J', $r) ?: 'paid';
+            $notes = $this->str($sh, 'K', $r);
+
+            $bad = false;
+            if ($poNumber === '') {
+                $this->addError('PM', $r, 'po_number required');
+                $bad = true;
+            }
+            if ($mNumber < 1) {
+                $this->addError('PM', $r, 'milestone_number must be >= 1');
+                $bad = true;
+            }
+            if ($amount === null) {
+                $this->addError('PM', $r, 'amount required');
+                $bad = true;
+            }
+            if (! in_array($status, self::MILESTONE_STATUSES, true)) {
+                $this->addError('PM', $r, "invalid status '{$status}'");
+                $bad = true;
+            }
+            if (! isset($this->poMap[$poNumber])) {
+                $this->addError('PM', $r, "po_number '{$poNumber}' not found");
+                $bad = true;
+            }
+            if ($bad) {
+                continue;
+            }
+
+            $poId = $this->poMap[$poNumber];
+            $po = PurchaseOrder::find($poId);
+
+            $existing = PaymentMilestone::where('purchase_order_id', $poId)
+                ->where('milestone_number', $mNumber)->first();
+            if ($existing) {
+                $this->addError('PM', $r, "milestone {$mNumber} for PO '{$poNumber}' already exists");
+
+                continue;
+            }
+
+            $pm = new PaymentMilestone;
             $pm->company_id = $po->company_id;
             $pm->purchase_order_id = $poId;
             $pm->milestone_number = $mNumber;
@@ -621,7 +947,7 @@ class ImportProcurementExcelV2 extends Command
             $pm->paid_amount = $paidAmt;
             $pm->payment_reference = $payRef ?: null;
             $pm->status = $status;
-            $pm->payment_notes = trim('Imported from Excel. ' . ($notes ?? ''));
+            $pm->payment_notes = trim('Imported from Excel. '.($notes ?? ''));
             $pm->created_by = $po->created_by;
             $pm->paid_by = $status === 'paid' ? $po->created_by : null;
             $pm->saveQuietly();
@@ -631,52 +957,143 @@ class ImportProcurementExcelV2 extends Command
     }
 
     // -------- helpers --------
-    private function rowIsEmpty($sh, int $row, string $lastCol): bool {
+    private function cascadeDeletePr(int $prId, int $row, string $prNumber): void
+    {
+        $poIds = DB::table('purchase_orders')->where('purchase_requisition_id', $prId)->pluck('id')->all();
+        if (! empty($poIds)) {
+            $grIds = DB::table('goods_receipts')->whereIn('purchase_order_id', $poIds)->pluck('id')->all();
+            if (! empty($grIds)) {
+                DB::table('goods_receipt_items')->whereIn('goods_receipt_id', $grIds)->delete();
+                DB::table('goods_receipts')->whereIn('id', $grIds)->delete();
+            }
+            DB::table('payment_milestones')->whereIn('purchase_order_id', $poIds)->delete();
+            DB::table('committee_members')->whereIn('purchase_order_id', $poIds)->delete();
+            DB::table('po_amendments')->whereIn('purchase_order_id', $poIds)->delete();
+            DB::table('purchase_order_items')->whereIn('purchase_order_id', $poIds)->delete();
+            DB::table('purchase_order_files')->whereIn('purchase_order_id', $poIds)->delete();
+            DB::table('procurement_attachments')
+                ->where('attachable_type', 'App\\Models\\PurchaseOrder')
+                ->whereIn('attachable_id', $poIds)
+                ->delete();
+            DB::table('sla_trackings')->whereIn('purchase_order_id', $poIds)->delete();
+            DB::table('purchase_orders')->whereIn('id', $poIds)->delete();
+        }
+
+        DB::table('purchase_requisition_items')->where('purchase_requisition_id', $prId)->delete();
+        DB::table('purchase_requisition_approvals')->where('purchase_requisition_id', $prId)->delete();
+        DB::table('procurement_attachments')
+            ->where('attachable_type', 'App\\Models\\PurchaseRequisition')
+            ->where('attachable_id', $prId)
+            ->delete();
+        DB::table('sla_trackings')->where('purchase_requisition_id', $prId)->delete();
+        DB::table('purchase_requisitions')->where('id', $prId)->delete();
+
+        $poCount = count($poIds);
+        $grCount = isset($grIds) ? count($grIds) : 0;
+        $this->line("  ~ PR R{$row}: cascade-deleted '{$prNumber}' (pr_id={$prId}, po={$poCount}, gr={$grCount})");
+    }
+
+    private function cascadeDeletePo(int $poId, int $row, string $poNumber): void
+    {
+        $grIds = DB::table('goods_receipts')->where('purchase_order_id', $poId)->pluck('id')->all();
+        if (! empty($grIds)) {
+            DB::table('goods_receipt_items')->whereIn('goods_receipt_id', $grIds)->delete();
+            DB::table('goods_receipts')->whereIn('id', $grIds)->delete();
+        }
+        DB::table('payment_milestones')->where('purchase_order_id', $poId)->delete();
+        DB::table('committee_members')->where('purchase_order_id', $poId)->delete();
+        DB::table('po_amendments')->where('purchase_order_id', $poId)->delete();
+        DB::table('purchase_order_items')->where('purchase_order_id', $poId)->delete();
+        DB::table('purchase_order_files')->where('purchase_order_id', $poId)->delete();
+        DB::table('procurement_attachments')
+            ->where('attachable_type', 'App\\Models\\PurchaseOrder')
+            ->where('attachable_id', $poId)
+            ->delete();
+        DB::table('sla_trackings')->where('purchase_order_id', $poId)->delete();
+        DB::table('purchase_orders')->where('id', $poId)->delete();
+        $grCount = count($grIds);
+        $this->line("  ~ PO R{$row}: cascade-deleted '{$poNumber}' (po_id={$poId}, gr={$grCount})");
+    }
+
+    private function rowIsEmpty($sh, int $row, string $lastCol): bool
+    {
         $cells = $sh->rangeToArray("A{$row}:{$lastCol}{$row}", null, true, false, false);
-        foreach ($cells[0] ?? [] as $v) if ($v !== null && trim((string)$v) !== '') return false;
+        foreach ($cells[0] ?? [] as $v) {
+            if ($v !== null && trim((string) $v) !== '') {
+                return false;
+            }
+        }
+
         return true;
     }
 
-    private function str($sh, string $col, int $row): string {
+    private function str($sh, string $col, int $row): string
+    {
         $v = $sh->getCell($col.$row)->getValue();
-        if (is_bool($v)) return $v ? '1' : '0';
-        if (is_array($v)) return '';
+        if (is_bool($v)) {
+            return $v ? '1' : '0';
+        }
+        if (is_array($v)) {
+            return '';
+        }
+
         return trim((string) ($v ?? ''));
     }
 
-    private function num($sh, string $col, int $row): ?float {
+    private function num($sh, string $col, int $row): ?float
+    {
         $v = $sh->getCell($col.$row)->getValue();
-        if ($v === null || $v === '') return null;
-        if (is_numeric($v)) return (float) $v;
+        if ($v === null || $v === '') {
+            return null;
+        }
+        if (is_numeric($v)) {
+            return (float) $v;
+        }
         $s = preg_replace('/[^0-9.\-]/', '', (string) $v);
+
         return $s === '' ? null : (float) $s;
     }
 
-    private function date($sh, string $col, int $row): ?string {
+    private function date($sh, string $col, int $row): ?string
+    {
         $v = $sh->getCell($col.$row)->getValue();
-        if ($v === null || $v === '') return null;
+        if ($v === null || $v === '') {
+            return null;
+        }
         if (is_numeric($v)) {
-            try { return ExcelDate::excelToDateTimeObject((float)$v)->format('Y-m-d'); }
-            catch (\Throwable $e) { return null; }
+            try {
+                return ExcelDate::excelToDateTimeObject((float) $v)->format('Y-m-d');
+            } catch (\Throwable $e) {
+                return null;
+            }
         }
         $s = trim((string) $v);
-        if (preg_match('/^\d{4}-\d{2}-\d{2}/', $s)) return substr($s, 0, 10);
+        if (preg_match('/^\d{4}-\d{2}-\d{2}/', $s)) {
+            return substr($s, 0, 10);
+        }
         $ts = strtotime($s);
+
         return $ts !== false ? date('Y-m-d', $ts) : null;
     }
 
-    private function addError(string $sheet, int $row, string $msg): void {
+    private function addError(string $sheet, int $row, string $msg): void
+    {
         $this->errors[] = [$sheet, $row, $msg];
     }
 
-    private function printErrors(): void {
+    private function printErrors(): void
+    {
         $this->newLine();
         $this->error('Errors found:');
         $bySheet = [];
-        foreach ($this->errors as [$sheet, $row, $msg]) $bySheet[$sheet][] = "  R{$row}: {$msg}";
+        foreach ($this->errors as [$sheet, $row, $msg]) {
+            $bySheet[$sheet][] = "  R{$row}: {$msg}";
+        }
         foreach ($bySheet as $sheet => $msgs) {
-            $this->line("[$sheet] " . count($msgs));
-            foreach ($msgs as $m) $this->line($m);
+            $this->line("[$sheet] ".count($msgs));
+            foreach ($msgs as $m) {
+                $this->line($m);
+            }
         }
     }
 }
