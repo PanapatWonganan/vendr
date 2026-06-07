@@ -82,7 +82,7 @@
                         </svg>
                     </div>
                     <p style="color:#6b7280;font-size:14px;font-weight:500;margin:0;">VENDR Assistant</p>
-                    <p style="color:#9ca3af;font-size:12px;margin:4px 0 0;">ถามอะไรก็ได้เกี่ยวกับระบบจัดซื้อ</p>
+                    <p style="color:#9ca3af;font-size:12px;margin:4px 0 0;">ถามเรื่องระบบจัดซื้อ หรือเรื่องงานทั่วไปก็ได้</p>
                     <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px;">
                         <button wire:click="$set('message', 'PR ของฉันถึงไหนแล้ว?')" style="display:block;width:100%;text-align:left;font-size:12px;background:#f0f9ff;color:#1e40af;border-radius:8px;padding:8px 12px;border:1px solid #bfdbfe;cursor:pointer;">
                             PR ของฉันถึงไหนแล้ว?

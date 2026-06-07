@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\GoodsReceiptResource\RelationManagers;
+namespace App\Filament\Resources\VendorEvaluationResource\RelationManagers;
 
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -13,6 +13,10 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
+/**
+ * ข้อ 13: ให้หน้าการประเมินผลงานสามารถแนบไฟล์ได้
+ * ใช้ตาราง polymorphic ProcurementAttachment (attachable) ร่วมกับโมดูลอื่น
+ */
 class AttachmentsRelationManager extends RelationManager
 {
     protected static string $relationship = 'attachments';
@@ -23,6 +27,17 @@ class AttachmentsRelationManager extends RelationManager
 
     protected static ?string $pluralModelLabel = 'ไฟล์แนบ';
 
+    protected const ACCEPTED_TYPES = [
+        'application/pdf',
+        'image/jpeg',
+        'image/png',
+        'image/jpg',
+        'application/msword',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ];
+
     public function form(Form $form): Form
     {
         return $form
@@ -31,26 +46,22 @@ class AttachmentsRelationManager extends RelationManager
                     ->label('เลือกไฟล์')
                     ->required()
                     ->disk('public')
-                    ->directory('goods-receipts')
-                    ->acceptedFileTypes([
-                        'application/pdf',
-                        'image/jpeg',
-                        'image/png',
-                        'image/jpg',
-                        'application/msword',
-                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                        'application/vnd.ms-excel',
-                        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                    ])
-                    ->maxSize(51200) // 50MB (ข้อ 6: รองรับไฟล์ขนาดใหญ่)
+                    ->directory('vendor-evaluations')
+                    ->acceptedFileTypes(self::ACCEPTED_TYPES)
+                    ->maxSize(51200) // 50MB
                     ->previewable(true)
                     ->downloadable()
                     ->visibility('public')
-                    ->storeFiles(false), // we handle storing manually in mutateFormDataUsing
+                    ->storeFiles(false),
 
                 Forms\Components\TextInput::make('file_name')
                     ->label('ชื่อไฟล์ (ไม่บังคับ - ระบบใช้ชื่อไฟล์ต้นฉบับหากเว้นว่าง)')
                     ->maxLength(255),
+
+                Forms\Components\Select::make('category')
+                    ->label('ประเภทเอกสาร')
+                    ->options(\App\Models\ProcurementAttachment::getCategories())
+                    ->default('inspection_report'),
 
                 Forms\Components\Textarea::make('description')
                     ->label('คำอธิบาย')
@@ -64,27 +75,28 @@ class AttachmentsRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('file_name')
             ->columns([
-                Tables\Columns\TextColumn::make('file_icon')
-                    ->label('')
-                    ->formatStateUsing(fn ($record) => $record->file_icon)
-                    ->size('lg'),
-
                 Tables\Columns\TextColumn::make('file_name')
                     ->label('ชื่อไฟล์')
                     ->searchable()
-                    ->limit(30)
+                    ->limit(35)
                     ->tooltip(fn ($record) => $record->file_name),
 
-                Tables\Columns\TextColumn::make('file_size_human')
+                Tables\Columns\TextColumn::make('category')
+                    ->label('ประเภท')
+                    ->formatStateUsing(fn ($state) => \App\Models\ProcurementAttachment::getCategories()[$state] ?? $state)
+                    ->badge()
+                    ->toggleable(),
+
+                Tables\Columns\TextColumn::make('file_size_for_humans')
                     ->label('ขนาด')
                     ->alignCenter(),
 
                 Tables\Columns\TextColumn::make('description')
                     ->label('คำอธิบาย')
-                    ->limit(20)
+                    ->limit(25)
                     ->tooltip(fn ($record) => $record->description),
 
-                Tables\Columns\TextColumn::make('uploadedBy.name')
+                Tables\Columns\TextColumn::make('uploader.name')
                     ->label('ผู้อัปโหลด')
                     ->toggleable(),
 
@@ -94,17 +106,14 @@ class AttachmentsRelationManager extends RelationManager
                     ->sortable()
                     ->toggleable(),
             ])
-            ->filters([
-                //
-            ])
             ->headerActions([
                 Tables\Actions\CreateAction::make()
                     ->label('อัปโหลดไฟล์')
                     ->icon('heroicon-o-plus')
                     ->mutateFormDataUsing(function (array $data): array {
                         $uploadedFile = $data['uploaded_file'] ?? null;
+                        unset($data['uploaded_file']);
 
-                        // FileUpload with storeFiles(false) returns array of TemporaryUploadedFile
                         if (is_array($uploadedFile)) {
                             $uploadedFile = reset($uploadedFile) ?: null;
                         }
@@ -124,16 +133,13 @@ class AttachmentsRelationManager extends RelationManager
                             $mimeType = $uploadedFile->getMimeType() ?: 'application/octet-stream';
                             $fileSize = $uploadedFile->getSize();
 
-                            // Persist the file to the public disk
-                            $filePath = $uploadedFile->store('goods-receipts', 'public');
-
+                            $filePath = $uploadedFile->store('vendor-evaluations', 'public');
                             if ($filePath === false) {
                                 throw new \RuntimeException('Failed to persist uploaded file.');
                             }
                         } catch (\Throwable $e) {
-                            Log::error('GR attachment upload failed', [
+                            Log::error('Vendor evaluation attachment upload failed', [
                                 'error' => $e->getMessage(),
-                                'trace' => $e->getTraceAsString(),
                             ]);
 
                             Notification::make()
@@ -146,12 +152,14 @@ class AttachmentsRelationManager extends RelationManager
                         }
 
                         $data['file_path'] = $filePath;
+                        $data['original_name'] = $originalName;
                         $data['file_name'] = ! empty($data['file_name']) ? $data['file_name'] : $originalName;
-                        $data['file_type'] = $mimeType;
+                        $data['mime_type'] = $mimeType;
                         $data['file_size'] = $fileSize;
+                        $data['category'] = $data['category'] ?? 'inspection_report';
                         $data['uploaded_by'] = Auth::id();
-
-                        unset($data['uploaded_file']);
+                        $data['company_id'] = session('company_id');
+                        $data['is_public'] = true;
 
                         return $data;
                     }),
@@ -162,8 +170,7 @@ class AttachmentsRelationManager extends RelationManager
                     ->icon('heroicon-o-eye')
                     ->color('info')
                     ->url(fn ($record) => Storage::url($record->file_path))
-                    ->openUrlInNewTab()
-                    ->visible(fn ($record) => $record->canPreview()),
+                    ->openUrlInNewTab(),
 
                 Tables\Actions\Action::make('download')
                     ->label('ดาวน์โหลด')
@@ -172,24 +179,15 @@ class AttachmentsRelationManager extends RelationManager
                     ->url(fn ($record) => Storage::url($record->file_path))
                     ->openUrlInNewTab(),
 
+                // ข้อ 11/13: อนุญาตให้แก้ไข/แทนที่ไฟล์ที่อัปโหลดไปแล้ว
                 Tables\Actions\EditAction::make()
                     ->label('แก้ไข')
                     ->form([
-                        // ข้อ 11: อนุญาตให้แก้ไข/แทนที่ไฟล์แนบที่เคยอัปโหลดไว้แล้ว
                         Forms\Components\FileUpload::make('replacement_file')
                             ->label('แทนที่ไฟล์ (เว้นว่างไว้หากไม่ต้องการเปลี่ยนไฟล์เดิม)')
                             ->disk('public')
-                            ->directory('goods-receipts')
-                            ->acceptedFileTypes([
-                                'application/pdf',
-                                'image/jpeg',
-                                'image/png',
-                                'image/jpg',
-                                'application/msword',
-                                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                                'application/vnd.ms-excel',
-                                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                            ])
+                            ->directory('vendor-evaluations')
+                            ->acceptedFileTypes(self::ACCEPTED_TYPES)
                             ->maxSize(51200)
                             ->previewable(true)
                             ->downloadable()
@@ -200,6 +198,9 @@ class AttachmentsRelationManager extends RelationManager
                             ->label('ชื่อไฟล์')
                             ->required()
                             ->maxLength(255),
+                        Forms\Components\Select::make('category')
+                            ->label('ประเภทเอกสาร')
+                            ->options(\App\Models\ProcurementAttachment::getCategories()),
                         Forms\Components\Textarea::make('description')
                             ->label('คำอธิบาย')
                             ->rows(3)
@@ -213,7 +214,6 @@ class AttachmentsRelationManager extends RelationManager
                             $uploadedFile = reset($uploadedFile) ?: null;
                         }
 
-                        // No new file selected -> keep the existing file untouched.
                         if (! $uploadedFile instanceof TemporaryUploadedFile) {
                             return $data;
                         }
@@ -223,24 +223,22 @@ class AttachmentsRelationManager extends RelationManager
                             $mimeType = $uploadedFile->getMimeType() ?: 'application/octet-stream';
                             $fileSize = $uploadedFile->getSize();
 
-                            $newPath = $uploadedFile->store('goods-receipts', 'public');
+                            $newPath = $uploadedFile->store('vendor-evaluations', 'public');
                             if ($newPath === false) {
                                 throw new \RuntimeException('Failed to persist replacement file.');
                             }
 
-                            // Remove the old physical file once the new one is stored.
                             if ($record->file_path && Storage::disk('public')->exists($record->file_path)) {
                                 Storage::disk('public')->delete($record->file_path);
                             }
                         } catch (\Throwable $e) {
-                            Log::error('GR attachment replacement failed', [
+                            Log::error('Vendor evaluation attachment replacement failed', [
                                 'error' => $e->getMessage(),
                                 'attachment_id' => $record->id ?? null,
                             ]);
 
                             Notification::make()
                                 ->title('แทนที่ไฟล์ไม่สำเร็จ')
-                                ->body('ไฟล์ชั่วคราวอาจหมดอายุ กรุณาลองอัปโหลดใหม่อีกครั้ง')
                                 ->danger()
                                 ->send();
 
@@ -248,9 +246,9 @@ class AttachmentsRelationManager extends RelationManager
                         }
 
                         $data['file_path'] = $newPath;
-                        $data['file_type'] = $mimeType;
+                        $data['original_name'] = $originalName;
+                        $data['mime_type'] = $mimeType;
                         $data['file_size'] = $fileSize;
-                        // If the user did not change the name, sync it to the new original name.
                         if (empty($data['file_name'])) {
                             $data['file_name'] = $originalName;
                         }
@@ -262,17 +260,18 @@ class AttachmentsRelationManager extends RelationManager
                     ->label('ลบ')
                     ->requiresConfirmation()
                     ->modalHeading('ลบไฟล์')
-                    ->modalDescription('คุณแน่ใจหรือไม่ที่ต้องการลบไฟล์นี้? ไฟล์จะถูกลบถาวรและไม่สามารถกู้คืนได้')
-                    ->modalSubmitActionLabel('ลบ')
-                    ->modalCancelActionLabel('ยกเลิก'),
+                    ->modalDescription('คุณแน่ใจหรือไม่ที่ต้องการลบไฟล์นี้?')
+                    ->after(function ($record) {
+                        if ($record->file_path && Storage::disk('public')->exists($record->file_path)) {
+                            Storage::disk('public')->delete($record->file_path);
+                        }
+                    }),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make()
                         ->label('ลบที่เลือก')
-                        ->requiresConfirmation()
-                        ->modalHeading('ลบไฟล์ที่เลือก')
-                        ->modalDescription('คุณแน่ใจหรือไม่ที่ต้องการลบไฟล์ที่เลือกทั้งหมด? ไฟล์จะถูกลบถาวรและไม่สามารถกู้คืนได้'),
+                        ->requiresConfirmation(),
                 ]),
             ])
             ->defaultSort('created_at', 'desc');

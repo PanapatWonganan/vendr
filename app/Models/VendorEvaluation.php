@@ -5,7 +5,6 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Models\PurchaseOrder;
 
 class VendorEvaluation extends Model
 {
@@ -70,6 +69,12 @@ class VendorEvaluation extends Model
         return $this->hasMany(VendorEvaluationItem::class);
     }
 
+    // ข้อ 13: แนบไฟล์ในหน้าการประเมินผลงาน (polymorphic ProcurementAttachment)
+    public function attachments(): MorphMany
+    {
+        return $this->morphMany(ProcurementAttachment::class, 'attachable');
+    }
+
     public function purchaseOrder(): BelongsTo
     {
         return $this->belongsTo(PurchaseOrder::class);
@@ -90,24 +95,25 @@ class VendorEvaluation extends Model
     public function calculateOverallScore()
     {
         $applicableItems = $this->evaluationItems()->where('is_applicable', true)->get();
-        
+
         if ($applicableItems->isEmpty()) {
             $this->update([
                 'overall_score' => null,
-                'applicable_criteria' => 0
+                'applicable_criteria' => 0,
             ]);
+
             return null;
         }
 
         $totalScore = $applicableItems->sum('score');
         $maxPossibleScore = $applicableItems->count() * 4; // Max score is 4
-        
+
         $overallScore = ($totalScore / $maxPossibleScore) * 100;
-        
+
         $this->update([
             'overall_score' => $overallScore,
             'applicable_criteria' => $applicableItems->count(),
-            'total_criteria' => $this->evaluationItems()->count()
+            'total_criteria' => $this->evaluationItems()->count(),
         ]);
 
         return $overallScore;
@@ -115,36 +121,54 @@ class VendorEvaluation extends Model
 
     public function getScoreGradeAttribute()
     {
-        if (!$this->overall_score) return 'N/A';
-        
+        if (! $this->overall_score) {
+            return 'N/A';
+        }
+
         // Convert percentage to 4-point scale
         $score = ($this->overall_score / 100) * 4;
-        
-        if ($score >= 3.5) return 'A';
-        if ($score >= 2.5) return 'B';
-        if ($score >= 1.5) return 'C';
+
+        if ($score >= 3.5) {
+            return 'A';
+        }
+        if ($score >= 2.5) {
+            return 'B';
+        }
+        if ($score >= 1.5) {
+            return 'C';
+        }
+
         return 'D';
     }
-    
+
     public function getScoreGradeDetailAttribute()
     {
-        if (!$this->overall_score) return 'ยังไม่ประเมิน';
-        
+        if (! $this->overall_score) {
+            return 'ยังไม่ประเมิน';
+        }
+
         // Convert percentage to 4-point scale
         $score = ($this->overall_score / 100) * 4;
         $scoreFormatted = number_format($score, 2);
-        
-        if ($score >= 3.5) return "A (คะแนน $scoreFormatted) - ดีมาก";
-        if ($score >= 2.5) return "B (คะแนน $scoreFormatted) - ดี";
-        if ($score >= 1.5) return "C (คะแนน $scoreFormatted) - พอใช้";
+
+        if ($score >= 3.5) {
+            return "A (คะแนน $scoreFormatted) - ดีมาก";
+        }
+        if ($score >= 2.5) {
+            return "B (คะแนน $scoreFormatted) - ดี";
+        }
+        if ($score >= 1.5) {
+            return "C (คะแนน $scoreFormatted) - พอใช้";
+        }
+
         return "D (คะแนน $scoreFormatted) - ควรปรับปรุง";
     }
-    
+
     public function getScoreGradeColorAttribute()
     {
         $grade = $this->score_grade;
-        
-        return match($grade) {
+
+        return match ($grade) {
             'A' => 'success',
             'B' => 'info',
             'C' => 'warning',
@@ -152,11 +176,13 @@ class VendorEvaluation extends Model
             default => 'gray'
         };
     }
-    
+
     public function getAverageScoreAttribute()
     {
-        if (!$this->overall_score) return null;
-        
+        if (! $this->overall_score) {
+            return null;
+        }
+
         // Convert percentage to 4-point scale
         return round(($this->overall_score / 100) * 4, 2);
     }

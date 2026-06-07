@@ -6,20 +6,21 @@ use App\Filament\Resources\PurchaseRequisitionResource\Pages;
 use App\Models\PurchaseRequisition;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Auth;
 
 class PurchaseRequisitionResource extends Resource
 {
     protected static ?string $model = PurchaseRequisition::class;
+
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
+
     protected static ?string $navigationLabel = 'Purchase Requisitions (PR)';
+
     protected static ?string $navigationGroup = 'Procurement Management';
+
     protected static ?int $navigationSort = 3;
 
     public static function canAccess(): bool
@@ -27,9 +28,44 @@ class PurchaseRequisitionResource extends Resource
         return auth()->user()?->hasAnyRole(['admin', 'requester', 'department_head', 'procurement_officer', 'procurement_manager', 'procurement_committee', 'auditor']) ?? false;
     }
 
+    // ข้อ 20: pending-approval count shown as a badge on this menu
+    // (replaces the standalone "PR รออนุมัติ" navigation item).
+    public static function getNavigationBadge(): ?string
+    {
+        $user = auth()->user();
+        if (! $user || ! $user->hasAnyRole(['admin', 'department_head', 'procurement_officer', 'procurement_manager', 'auditor'])) {
+            return null;
+        }
+
+        $companyId = session('company_id');
+        $query = static::getModel()::where('status', 'pending_approval')
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId));
+
+        // Department heads (without procurement roles) only see their own department
+        if (! $user->hasAnyRole(['admin', 'procurement_manager', 'procurement_officer', 'auditor'])
+            && $user->hasRole('department_head') && $user->department_id) {
+            $query->where('department_id', $user->department_id);
+        }
+
+        $count = $query->count();
+
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'PR รออนุมัติ';
+    }
+
     public static function getEloquentQuery(): Builder
     {
         $companyId = session('company_id');
+
         return parent::getEloquentQuery()->when($companyId, fn ($query) => $query->where('company_id', $companyId));
     }
 
@@ -73,6 +109,7 @@ class PurchaseRequisitionResource extends Resource
                                     if (session('company_id') == 2) {
                                         return ['law_based' => 'แบบฟอร์มเชิงพาณิชย์'];
                                     }
+
                                     return PurchaseRequisition::getFormCategoryOptions();
                                 })
                                 ->default(fn () => session('company_id') == 2 ? 'law_based' : null)
@@ -106,7 +143,7 @@ class PurchaseRequisitionResource extends Resource
                                 ->default('medium')
                                 ->options([
                                     'low' => 'Low (ต่ำ)',
-                                    'medium' => 'Medium (ปานกลาง)', 
+                                    'medium' => 'Medium (ปานกลาง)',
                                     'high' => 'High (สูง)',
                                     'urgent' => 'Urgent (เร่งด่วน)',
                                 ]),
@@ -145,9 +182,10 @@ class PurchaseRequisitionResource extends Resource
                                 ->label('Requester')
                                 ->options(function (Forms\Get $get) {
                                     $departmentId = $get('department_id');
-                                    if (!$departmentId) {
+                                    if (! $departmentId) {
                                         return [];
                                     }
+
                                     return \App\Models\User::where('department_id', $departmentId)
                                         ->orderBy('name')
                                         ->pluck('name', 'id');
@@ -155,9 +193,8 @@ class PurchaseRequisitionResource extends Resource
                                 ->required()
                                 ->searchable()
                                 ->placeholder('Select department first')
-                                ->disabled(fn (Forms\Get $get): bool => !$get('department_id'))
-                                ->helperText(fn (Forms\Get $get): string => 
-                                    !$get('department_id') ? 'Please select a department first' : 'Select the person who requested this purchase'
+                                ->disabled(fn (Forms\Get $get): bool => ! $get('department_id'))
+                                ->helperText(fn (Forms\Get $get): string => ! $get('department_id') ? 'Please select a department first' : 'Select the person who requested this purchase'
                                 ),
                         ]),
 
@@ -259,7 +296,7 @@ class PurchaseRequisitionResource extends Resource
                             Forms\Components\Select::make('procurement_committee_id')
                                 ->label('Procurement Committee')
                                 ->options(function () {
-                                    return \App\Models\User::whereHas('roles', function($query) {
+                                    return \App\Models\User::whereHas('roles', function ($query) {
                                         $query->where('name', 'procurement_committee');
                                     })->orderBy('name')->pluck('name', 'id');
                                 })
@@ -269,7 +306,7 @@ class PurchaseRequisitionResource extends Resource
                             Forms\Components\Select::make('inspection_committee_id')
                                 ->label('Inspection Committee')
                                 ->options(function () {
-                                    return \App\Models\User::whereHas('roles', function($query) {
+                                    return \App\Models\User::whereHas('roles', function ($query) {
                                         $query->where('name', 'inspection_committee');
                                     })->orderBy('name')->pluck('name', 'id');
                                 })
@@ -281,7 +318,7 @@ class PurchaseRequisitionResource extends Resource
                             Forms\Components\Select::make('pr_approver_id')
                                 ->label('PR Approver')
                                 ->options(function () {
-                                    return \App\Models\User::whereHas('roles', function($query) {
+                                    return \App\Models\User::whereHas('roles', function ($query) {
                                         $query->whereIn('name', ['approver', 'admin', 'procurement_manager']);
                                     })->orderBy('name')->pluck('name', 'id');
                                 })
@@ -291,7 +328,7 @@ class PurchaseRequisitionResource extends Resource
                             Forms\Components\Select::make('other_stakeholder_id')
                                 ->label('Other Stakeholder')
                                 ->options(function () {
-                                    return \App\Models\User::whereHas('roles', function($query) {
+                                    return \App\Models\User::whereHas('roles', function ($query) {
                                         $query->where('name', 'other_stakeholder');
                                     })->orderBy('name')->pluck('name', 'id');
                                 })
@@ -386,12 +423,12 @@ class PurchaseRequisitionResource extends Resource
                                         ])
                                         ->default('pending'),
                                 ]),
-                                
+
                                 Forms\Components\Textarea::make('specification')
                                     ->label('Technical Specification')
                                     ->rows(2)
                                     ->columnSpanFull(),
-                                    
+
                                 Forms\Components\Textarea::make('remarks')
                                     ->label('Remarks')
                                     ->rows(2)
@@ -426,7 +463,7 @@ class PurchaseRequisitionResource extends Resource
                                     'rejected' => 'Rejected',
                                     'cancelled' => 'Cancelled',
                                 ])
-                                ->disabled(fn ($record) => !$record || $record->status !== 'draft'),
+                                ->disabled(fn ($record) => ! $record || $record->status !== 'draft'),
 
                             Forms\Components\TextInput::make('total_amount')
                                 ->label('Total Amount')

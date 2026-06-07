@@ -2,20 +2,17 @@
 
 namespace App\Providers\Filament;
 
-use Filament\Http\Middleware\Authenticate;
+use App\Filament\Pages\CompanySelect;
+use App\Filament\Widgets\CompanySelector;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationItem;
 use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Widgets;
-use App\Filament\Widgets\CompanySelector;
-use App\Http\Middleware\CompanyMiddleware;
-use App\Filament\Pages\CompanySelect;
-use Filament\Navigation\NavigationGroup;
-use Filament\Navigation\NavigationItem;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
@@ -35,6 +32,7 @@ class AdminPanelProvider extends PanelProvider
             ->brandName('Innobic Procurement System')
             ->brandLogo(function () {
                 $company = \App\Models\Company::find(session('company_id'));
+
                 return $company ? asset($company->logo ?? 'assets/img/innobic.png') : asset('assets/img/innobic.png');
             })
             ->favicon(asset('assets/img/innobic.png'))
@@ -101,39 +99,23 @@ class AdminPanelProvider extends PanelProvider
                 \Leandrocfe\FilamentApexCharts\FilamentApexChartsPlugin::make(),
             ])
             ->navigationItems([
-                NavigationItem::make('คำขอของฉัน')
+                NavigationItem::make('My Requests (คำขอ)')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('my-requests'))
                     ->icon('heroicon-o-user')
                     ->group('Procurement Management')
                     ->sort(1)
                     ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'requester', 'department_head', 'procurement_officer', 'procurement_manager', 'procurement_committee', 'auditor'])),
-                NavigationItem::make('PR รออนุมัติ')
-                    ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('pending-approvals'))
-                    ->icon('heroicon-o-clock')
-                    ->group('Procurement Management')
-                    ->sort(2)
-                    ->badge(function () {
-                        $count = \App\Models\PurchaseRequisition::where('status', 'pending_approval')->count();
-                        return $count > 0 ? (string) $count : null;
-                    })
-                    ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'department_head', 'procurement_officer', 'procurement_manager', 'auditor'])),
-                NavigationItem::make('PO รออนุมัติ')
-                    ->url(fn () => \App\Filament\Resources\PurchaseOrderResource::getUrl('pending-approvals'))
-                    ->icon('heroicon-o-clipboard-document-check')
-                    ->group('Procurement Management')
-                    ->sort(3)
-                    ->badge(function () {
-                        $count = \App\Models\PurchaseOrder::where('status', 'pending_approval')->count();
-                        return $count > 0 ? (string) $count : null;
-                    })
-                    ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'department_head', 'procurement_officer', 'procurement_manager', 'auditor'])),
-                NavigationItem::make('จัดหาฯ ไม่เกิน 1 หมื่นบาท')
+                // NOTE: The standalone "PR รออนุมัติ" / "PO รออนุมัติ" menus were removed
+                // per customer request (ข้อ 20). The pending-approval counts are now shown
+                // as navigation badges on the main "Purchase Requisitions (PR)" and
+                // "Purchase Orders (PO)" resources instead (see getNavigationBadge()).
+                NavigationItem::make('Procurement ≤ THB 10,000')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('create-direct-small'))
                     ->icon('heroicon-o-shopping-cart')
                     ->group('Procurement Management')
                     ->sort(5)
                     ->visible(fn () => auth()->user()?->hasAnyRole(['admin', 'requester', 'department_head', 'procurement_officer', 'procurement_manager'])),
-                NavigationItem::make('จัดหาฯ ไม่เกิน 1 แสนบาท')
+                NavigationItem::make('Procurement ≤ THB 100,000')
                     ->url(fn () => \App\Filament\Resources\PurchaseRequisitionResource::getUrl('create-direct-medium'))
                     ->icon('heroicon-o-shopping-bag')
                     ->group('Procurement Management')

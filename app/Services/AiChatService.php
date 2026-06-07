@@ -2,12 +2,11 @@
 
 namespace App\Services;
 
-use App\Models\PurchaseRequisition;
-use App\Models\PurchaseOrder;
 use App\Models\GoodsReceipt;
-use App\Models\Vendor;
-use App\Models\Department;
 use App\Models\KnowledgeArticle;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseRequisition;
+use App\Models\Vendor;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -15,6 +14,7 @@ use Illuminate\Support\Facades\Log;
 class AiChatService
 {
     private string $apiKey;
+
     private string $model;
 
     public function __construct()
@@ -28,7 +28,7 @@ class AiChatService
         $companyId = session('company_id');
         $user = Auth::user();
 
-        if (!$this->apiKey) {
+        if (! $this->apiKey) {
             return [
                 'content' => 'ระบบ AI Chat ยังไม่ได้ตั้งค่า กรุณาติดต่อผู้ดูแลระบบ',
                 'metadata' => ['error' => 'missing_api_key'],
@@ -50,8 +50,9 @@ class AiChatService
                     'max_tokens' => 1000,
                 ]);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 Log::error('AiChatService API error', ['status' => $response->status(), 'body' => $response->body()]);
+
                 return [
                     'content' => 'ขออภัย ระบบ AI ไม่สามารถตอบได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง',
                     'metadata' => ['error' => 'api_error', 'status' => $response->status()],
@@ -61,7 +62,7 @@ class AiChatService
             $result = $response->json();
             $choice = $result['choices'][0]['message'] ?? null;
 
-            if (!$choice) {
+            if (! $choice) {
                 return ['content' => 'ไม่สามารถประมวลผลได้ กรุณาลองใหม่', 'metadata' => []];
             }
 
@@ -79,8 +80,9 @@ class AiChatService
             ];
         } catch (\Exception $e) {
             Log::error('AiChatService exception', ['message' => $e->getMessage()]);
+
             return [
-                'content' => 'เกิดข้อผิดพลาด: ' . $e->getMessage(),
+                'content' => 'เกิดข้อผิดพลาด: '.$e->getMessage(),
                 'metadata' => ['error' => 'exception'],
             ];
         }
@@ -115,12 +117,13 @@ class AiChatService
 
         if ($response->successful()) {
             $result = $response->json();
+
             return [
                 'content' => $result['choices'][0]['message']['content'] ?? 'ไม่สามารถตอบได้',
                 'metadata' => [
                     'tokens' => $result['usage'] ?? [],
                     'model' => $result['model'] ?? $this->model,
-                    'functions_called' => array_map(fn($tc) => $tc['function']['name'], $choice['tool_calls']),
+                    'functions_called' => array_map(fn ($tc) => $tc['function']['name'], $choice['tool_calls']),
                 ],
             ];
         }
@@ -137,7 +140,7 @@ class AiChatService
             'get_budget_summary' => $this->getBudgetSummary($companyId, $user),
             'get_vendor_info' => $this->getVendorInfo($args, $companyId),
             'search_knowledge_base' => $this->searchKnowledgeBase($args),
-            default => ['error' => 'Unknown function: ' . $name],
+            default => ['error' => 'Unknown function: '.$name],
         };
     }
 
@@ -147,8 +150,8 @@ class AiChatService
     {
         $query = PurchaseRequisition::where('company_id', $companyId);
 
-        if (!empty($args['pr_number'])) {
-            $query->where('pr_number', 'like', '%' . $args['pr_number'] . '%');
+        if (! empty($args['pr_number'])) {
+            $query->where('pr_number', 'like', '%'.$args['pr_number'].'%');
         } else {
             $query->where('requester_id', $user->id);
         }
@@ -161,7 +164,7 @@ class AiChatService
 
         return [
             'count' => $prs->count(),
-            'purchase_requisitions' => $prs->map(fn($pr) => [
+            'purchase_requisitions' => $prs->map(fn ($pr) => [
                 'pr_number' => $pr->pr_number,
                 'title' => $pr->title,
                 'status' => $pr->status,
@@ -175,8 +178,8 @@ class AiChatService
     {
         $query = PurchaseOrder::where('company_id', $companyId)->with('vendor');
 
-        if (!empty($args['po_number'])) {
-            $query->where('po_number', 'like', '%' . $args['po_number'] . '%');
+        if (! empty($args['po_number'])) {
+            $query->where('po_number', 'like', '%'.$args['po_number'].'%');
         }
 
         $pos = $query->latest()->limit(5)->get(['id', 'po_number', 'po_title', 'vendor_id', 'status', 'total_amount', 'expected_delivery_date', 'created_at']);
@@ -187,7 +190,7 @@ class AiChatService
 
         return [
             'count' => $pos->count(),
-            'purchase_orders' => $pos->map(fn($po) => [
+            'purchase_orders' => $pos->map(fn ($po) => [
                 'po_number' => $po->po_number,
                 'title' => $po->po_title,
                 'vendor' => optional($po->vendor)->company_name,
@@ -203,8 +206,8 @@ class AiChatService
     {
         $query = GoodsReceipt::where('company_id', $companyId)->with(['vendor', 'purchaseOrder']);
 
-        if (!empty($args['gr_number'])) {
-            $query->where('gr_number', 'like', '%' . $args['gr_number'] . '%');
+        if (! empty($args['gr_number'])) {
+            $query->where('gr_number', 'like', '%'.$args['gr_number'].'%');
         }
 
         $grs = $query->latest()->limit(5)->get(['id', 'gr_number', 'vendor_id', 'purchase_order_id', 'status', 'inspection_status', 'receipt_date']);
@@ -215,7 +218,7 @@ class AiChatService
 
         return [
             'count' => $grs->count(),
-            'goods_receipts' => $grs->map(fn($gr) => [
+            'goods_receipts' => $grs->map(fn ($gr) => [
                 'gr_number' => $gr->gr_number,
                 'vendor' => optional($gr->vendor)->company_name,
                 'po_number' => optional($gr->purchaseOrder)->po_number,
@@ -230,7 +233,7 @@ class AiChatService
     {
         $department = $user->department;
 
-        if (!$department) {
+        if (! $department) {
             return ['message' => 'ไม่พบข้อมูลแผนก'];
         }
 
@@ -262,8 +265,8 @@ class AiChatService
     {
         $query = Vendor::where('company_id', $companyId);
 
-        if (!empty($args['vendor_name'])) {
-            $query->where('company_name', 'like', '%' . $args['vendor_name'] . '%');
+        if (! empty($args['vendor_name'])) {
+            $query->where('company_name', 'like', '%'.$args['vendor_name'].'%');
         }
 
         $vendors = $query->limit(3)->get(['id', 'company_name', 'tax_id', 'contact_name', 'contact_phone', 'contact_email', 'status']);
@@ -274,7 +277,7 @@ class AiChatService
 
         return [
             'count' => $vendors->count(),
-            'vendors' => $vendors->map(fn($v) => [
+            'vendors' => $vendors->map(fn ($v) => [
                 'name' => $v->company_name,
                 'tax_id' => $v->tax_id,
                 'contact' => $v->contact_name,
@@ -291,8 +294,8 @@ class AiChatService
 
         $articles = KnowledgeArticle::where('is_published', true)
             ->where(function ($q) use ($keyword) {
-                $q->where('title', 'like', '%' . $keyword . '%')
-                  ->orWhere('content', 'like', '%' . $keyword . '%');
+                $q->where('title', 'like', '%'.$keyword.'%')
+                    ->orWhere('content', 'like', '%'.$keyword.'%');
             })
             ->limit(3)
             ->get(['id', 'title', 'content', 'category']);
@@ -303,7 +306,7 @@ class AiChatService
 
         return [
             'count' => $articles->count(),
-            'articles' => $articles->map(fn($a) => [
+            'articles' => $articles->map(fn ($a) => [
                 'title' => $a->title,
                 'content' => mb_substr(strip_tags($a->content), 0, 500),
                 'category' => $a->category,
@@ -481,8 +484,9 @@ PR (ใบขอซื้อ) → Value Analysis (วิเคราะห์ร
 ═══════════════════════════════════════
 กฎสำคัญ
 ═══════════════════════════════════════
-1. ตอบเฉพาะเรื่องที่เกี่ยวกับระบบ VENDR และงานจัดซื้อจัดจ้างเท่านั้น
-2. ถ้าผู้ใช้ถามเรื่องอื่นที่ไม่เกี่ยวกับระบบ ให้ปฏิเสธสุภาพ เช่น "ขออภัยครับ ผมตอบได้เฉพาะเรื่องเกี่ยวกับระบบจัดซื้อ VENDR ครับ"
+1. ความเชี่ยวชาญหลักคือระบบ VENDR และงานจัดซื้อจัดจ้าง — ให้ความสำคัญกับเรื่องเหล่านี้ก่อนเสมอ
+2. ผู้ใช้สามารถถามเรื่องอื่นที่เกี่ยวข้องกับการทำงานได้ด้วย (เช่น คำนวณตัวเลข/ภาษี, ร่าง/แปลข้อความ, คำถามธุรกิจทั่วไป, ความรู้ทั่วไป) — ให้ช่วยตอบอย่างสุภาพและเป็นประโยชน์ แล้วชวนกลับมาที่งานจัดซื้อหากเหมาะสม
+   - หลีกเลี่ยงเฉพาะเนื้อหาที่ไม่เหมาะสม ผิดกฎหมาย หรือเป็นอันตรายเท่านั้น
 3. ใช้ function calling ดึงข้อมูลจริงเมื่อผู้ใช้ถามเกี่ยวกับข้อมูลเฉพาะ (PR/PO/GR/งบ/ผู้ขาย)
 4. ถ้าเป็นคำถามทั่วไปเกี่ยวกับวิธีใช้งาน ให้ตอบจากความรู้ข้างต้นได้เลย ไม่ต้องเรียก function
 5. อย่าเดาข้อมูลตัวเลข ถ้าไม่มีให้บอกตรงๆ

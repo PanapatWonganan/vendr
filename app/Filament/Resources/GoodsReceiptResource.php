@@ -8,6 +8,8 @@ use App\Models\GoodsReceipt;
 use App\Models\PaymentMilestone;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -18,15 +20,15 @@ class GoodsReceiptResource extends Resource
     protected static ?string $model = GoodsReceipt::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
-    
-    protected static ?string $navigationLabel = 'ตรวจรับงาน/วัสดุ (GR/MR)';
-    
+
+    protected static ?string $navigationLabel = 'Goods & Service Receipt (GR/MR)';
+
     protected static ?string $modelLabel = 'ใบตรวจรับ';
-    
+
     protected static ?string $pluralModelLabel = 'ใบตรวจรับงาน/วัสดุ';
-    
+
     protected static ?string $navigationGroup = 'Procurement Management';
-    
+
     protected static ?int $navigationSort = 8;
 
     public static function canAccess(): bool
@@ -76,7 +78,7 @@ class GoodsReceiptResource extends Resource
                             ->label('งวดการส่งมอบ')
                             ->options(function (Forms\Get $get, ?GoodsReceipt $record) {
                                 $poId = $get('purchase_order_id');
-                                if (!$poId) {
+                                if (! $poId) {
                                     return [];
                                 }
 
@@ -94,7 +96,7 @@ class GoodsReceiptResource extends Resource
                                     ->orderBy('milestone_number')
                                     ->get()
                                     ->mapWithKeys(fn ($m) => [
-                                        $m->id => "งวดที่ {$m->milestone_number} - {$m->milestone_title} ({$m->percentage}%)"
+                                        $m->id => "งวดที่ {$m->milestone_number} - {$m->milestone_title} ({$m->percentage}%)",
                                     ]);
                             })
                             ->live()
@@ -111,9 +113,10 @@ class GoodsReceiptResource extends Resource
                                     $set('milestone_percentage', null);
                                 }
                             })
-                            ->placeholder('เลือก PO ก่อน แล้วเลือกงวด')
-                            ->helperText('แสดงเฉพาะงวดที่ยังไม่ได้ตรวจรับ')
-                            ->required(),
+                            ->placeholder('เลือก PO ก่อน แล้วเลือกงวด (ถ้ามี)')
+                            // ข้อ 8: ไม่บังคับเลือกงวด — กรณี PO ไม่มีงวดการจ่ายในระบบ
+                            // ผู้ใช้สามารถระบุ "งวดที่" และ "เปอร์เซ็นต์" ด้านล่างได้เอง
+                            ->helperText('แสดงเฉพาะงวดที่ยังไม่ได้ตรวจรับ — หาก PO นี้ยังไม่มีงวดในระบบ ให้ระบุงวดที่/เปอร์เซ็นต์ด้านล่างเอง'),
 
                         Forms\Components\Hidden::make('vendor_id')
                             ->dehydrated(true),
@@ -131,7 +134,7 @@ class GoodsReceiptResource extends Resource
                             ->preload()
                             ->nullable(),
                     ])->columns(3),
-                    
+
                 Forms\Components\Section::make('ข้อมูลการตรวจรับ')
                     ->schema([
                         Forms\Components\TextInput::make('gr_number')
@@ -143,19 +146,24 @@ class GoodsReceiptResource extends Resource
                             ->label('วันที่รับ')
                             ->required()
                             ->default(now()),
+                        // ข้อ 8: แก้ไขได้เอง เมื่อ PO ไม่มีงวดในระบบ
+                        // (auto-fill จาก dropdown ด้านบนหากเลือกงวด)
                         Forms\Components\TextInput::make('delivery_milestone')
                             ->label('งวดที่')
-                            ->disabled()
+                            ->numeric()
+                            ->minValue(1)
                             ->dehydrated(true)
-                            ->placeholder('เลือกงวดการส่งมอบด้านบน')
-                            ->helperText('ดึงจากงวดการส่งมอบอัตโนมัติ'),
+                            ->placeholder('ระบุงวดที่ หรือเลือกจากงวดการส่งมอบด้านบน')
+                            ->helperText('ระบุเองได้ หรือดึงจากงวดการส่งมอบอัตโนมัติ'),
                         Forms\Components\TextInput::make('milestone_percentage')
                             ->label('เปอร์เซ็นต์')
-                            ->disabled()
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(100)
                             ->dehydrated(true)
                             ->suffix('%')
-                            ->placeholder('-')
-                            ->helperText('ดึงจากงวดการส่งมอบอัตโนมัติ'),
+                            ->placeholder('เช่น 25')
+                            ->helperText('ระบุเองได้ หรือดึงจากงวดการส่งมอบอัตโนมัติ'),
                         Forms\Components\Select::make('inspection_status')
                             ->label('สถานะตรวจสอบ')
                             ->required()
@@ -178,7 +186,7 @@ class GoodsReceiptResource extends Resource
                             ])
                             ->default('draft'),
                     ])->columns(3),
-                    
+
                 Forms\Components\Section::make('หมายเหตุ')
                     ->schema([
                         Forms\Components\Textarea::make('notes')
@@ -194,6 +202,118 @@ class GoodsReceiptResource extends Resource
                 // the form). The previous inline FileUpload here did not
                 // persist GoodsReceiptAttachment records on edit, causing
                 // files to vanish after refresh.
+            ]);
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\Section::make('ข้อมูลใบตรวจรับ')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('gr_number')
+                            ->label('เลขที่ GR'),
+                        Infolists\Components\TextEntry::make('purchaseOrder.po_number')
+                            ->label('เลขที่ PO'),
+                        Infolists\Components\TextEntry::make('vendor.company_name')
+                            ->label('ผู้ขาย'),
+                        // ข้อ 2: แสดงวันที่เป็น วัน/เดือน/ปี
+                        Infolists\Components\TextEntry::make('receipt_date')
+                            ->label('วันที่รับ')
+                            ->date('d/m/Y'),
+                        Infolists\Components\TextEntry::make('delivery_milestone')
+                            ->label('งวดที่')
+                            ->formatStateUsing(function ($state, $record) {
+                                $num = $record->paymentMilestone->milestone_number ?? $state;
+
+                                return $num ? "งวดที่ {$num}" : '-';
+                            }),
+                        Infolists\Components\TextEntry::make('inspectionCommittee.name')
+                            ->label('คณะกรรมการตรวจสอบ')
+                            ->placeholder('-'),
+                    ])->columns(3),
+
+                // ข้อ 1: แสดงมูลค่าสัญญา และจำนวนเงินที่ตรวจรับในงวดนั้นๆ
+                Infolists\Components\Section::make('มูลค่าและจำนวนเงินตรวจรับ')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('contract_value')
+                            ->label('มูลค่าสัญญา')
+                            ->state(fn ($record) => $record->purchaseOrder?->total_amount)
+                            ->formatStateUsing(fn ($state) => $state !== null ? number_format($state, 2).' บาท' : '-'),
+                        Infolists\Components\TextEntry::make('milestone_amount')
+                            ->label('จำนวนเงินตรวจรับงวดนี้')
+                            ->state(function ($record) {
+                                // Prefer the linked milestone amount; otherwise derive
+                                // from contract value × milestone percentage.
+                                if ($record->paymentMilestone?->amount !== null) {
+                                    return $record->paymentMilestone->amount;
+                                }
+                                $pct = $record->paymentMilestone->percentage ?? $record->milestone_percentage;
+                                $total = $record->purchaseOrder?->total_amount;
+                                if ($pct !== null && $total !== null) {
+                                    return round($total * $pct / 100, 2);
+                                }
+
+                                return null;
+                            })
+                            ->formatStateUsing(fn ($state) => $state !== null ? number_format($state, 2).' บาท' : '-'),
+                        Infolists\Components\TextEntry::make('milestone_percentage')
+                            ->label('เปอร์เซ็นต์')
+                            ->state(fn ($record) => $record->paymentMilestone->percentage ?? $record->milestone_percentage)
+                            ->formatStateUsing(fn ($state) => $state !== null ? number_format($state, 2).' %' : '-'),
+                    ])->columns(3),
+
+                Infolists\Components\Section::make('สถานะ')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('inspection_status')
+                            ->label('สถานะตรวจสอบ')
+                            ->badge()
+                            ->formatStateUsing(fn ($state) => match ($state) {
+                                'pending' => 'รอตรวจสอบ',
+                                'passed' => 'ผ่านการตรวจสอบ',
+                                'failed' => 'ไม่ผ่านการตรวจสอบ',
+                                'partial' => 'ผ่านบางส่วน',
+                                default => $state,
+                            })
+                            ->color(fn ($state) => match ($state) {
+                                'pending' => 'warning',
+                                'passed' => 'success',
+                                'failed' => 'danger',
+                                'partial' => 'info',
+                                default => 'gray',
+                            }),
+                        Infolists\Components\TextEntry::make('status')
+                            ->label('สถานะ')
+                            ->badge()
+                            ->formatStateUsing(fn ($state) => match ($state) {
+                                'draft' => 'แบบร่าง',
+                                'completed' => 'เสร็จสมบูรณ์',
+                                'returned' => 'ส่งคืน',
+                                'partially_returned' => 'ส่งคืนบางส่วน',
+                                'cancelled' => 'ยกเลิก',
+                                default => $state,
+                            })
+                            ->color(fn ($state) => match ($state) {
+                                'draft' => 'gray',
+                                'completed' => 'success',
+                                'returned' => 'warning',
+                                'partially_returned' => 'info',
+                                'cancelled' => 'danger',
+                                default => 'gray',
+                            }),
+                    ])->columns(2),
+
+                Infolists\Components\Section::make('หมายเหตุ')
+                    ->schema([
+                        Infolists\Components\TextEntry::make('notes')
+                            ->label('หมายเหตุ')
+                            ->placeholder('-')
+                            ->columnSpanFull(),
+                        Infolists\Components\TextEntry::make('inspection_notes')
+                            ->label('หมายเหตุการตรวจสอบ')
+                            ->placeholder('-')
+                            ->columnSpanFull(),
+                    ]),
             ]);
     }
 
@@ -228,6 +348,7 @@ class GoodsReceiptResource extends Resource
                         if ($record->paymentMilestone) {
                             return "งวดที่ {$record->paymentMilestone->milestone_number} - {$state}";
                         }
+
                         return $record->delivery_milestone ? "งวดที่ {$record->delivery_milestone}" : '-';
                     })
                     ->badge()
@@ -236,19 +357,20 @@ class GoodsReceiptResource extends Resource
                     ->label('%')
                     ->formatStateUsing(function ($state, $record) {
                         $pct = $state ?? $record->milestone_percentage;
-                        return $pct ? number_format($pct, 1) . '%' : '-';
+
+                        return $pct ? number_format($pct, 1).'%' : '-';
                     })
                     ->alignCenter(),
                 Tables\Columns\BadgeColumn::make('inspection_status')
                     ->label('สถานะตรวจสอบ')
-                    ->formatStateUsing(fn ($state) => match($state) {
+                    ->formatStateUsing(fn ($state) => match ($state) {
                         'pending' => 'รอตรวจสอบ',
                         'passed' => 'ผ่านการตรวจสอบ',
                         'failed' => 'ไม่ผ่านการตรวจสอบ',
                         'partial' => 'ผ่านบางส่วน',
                         default => $state
                     })
-                    ->color(fn ($state) => match($state) {
+                    ->color(fn ($state) => match ($state) {
                         'pending' => 'warning',
                         'passed' => 'success',
                         'failed' => 'danger',
@@ -257,7 +379,7 @@ class GoodsReceiptResource extends Resource
                     }),
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('สถานะ')
-                    ->formatStateUsing(fn ($state) => match($state) {
+                    ->formatStateUsing(fn ($state) => match ($state) {
                         'draft' => 'แบบร่าง',
                         'completed' => 'เสร็จสมบูรณ์',
                         'returned' => 'ส่งคืน',
@@ -265,7 +387,7 @@ class GoodsReceiptResource extends Resource
                         'cancelled' => 'ยกเลิก',
                         default => $state
                     })
-                    ->color(fn ($state) => match($state) {
+                    ->color(fn ($state) => match ($state) {
                         'draft' => 'gray',
                         'completed' => 'success',
                         'returned' => 'warning',
@@ -370,45 +492,46 @@ class GoodsReceiptResource extends Resource
                     ->modalSubmitActionLabel('ส่งการแจ้งเตือน')
                     ->action(function ($record) {
                         $creator = \App\Models\User::find(auth()->id());
-                        
-                        if (!$record->inspection_committee_id) {
+
+                        if (! $record->inspection_committee_id) {
                             \Filament\Notifications\Notification::make()
                                 ->title('ไม่พบคณะกรรมการ')
                                 ->body('กรุณาเลือกคณะกรรมการตรวจสอบก่อนส่งการแจ้งเตือน')
                                 ->danger()
                                 ->send();
+
                             return;
                         }
-                        
+
                         try {
                             // Send email immediately (sync)
                             $goodsReceipt = \App\Models\GoodsReceipt::with(['purchaseOrder', 'vendor', 'inspectionCommittee'])->find($record->id);
-                            
+
                             if ($goodsReceipt->inspectionCommittee && $goodsReceipt->inspectionCommittee->email) {
                                 // Send to inspection committee
                                 \Illuminate\Support\Facades\Mail::to($goodsReceipt->inspectionCommittee->email)
                                     ->send(new \App\Mail\GoodsReceiptNotificationMail($goodsReceipt, $creator));
-                                    
+
                                 // Send copy to creator if different email
                                 if ($creator->email !== $goodsReceipt->inspectionCommittee->email) {
                                     \Illuminate\Support\Facades\Mail::to($creator->email)
                                         ->send(new \App\Mail\GoodsReceiptNotificationMail($goodsReceipt, $creator, true));
                                 }
                             }
-                            
+
                             \Filament\Notifications\Notification::make()
                                 ->title('ส่งการแจ้งเตือนแล้ว')
                                 ->body('ส่งการแจ้งเตือนใบตรวจรับให้คณะกรรมการเรียบร้อยแล้ว')
                                 ->success()
                                 ->send();
-                                
+
                             // Update reminder timestamp
                             $record->update(['reminder_sent_at' => now()]);
-                            
+
                         } catch (\Exception $e) {
                             \Filament\Notifications\Notification::make()
                                 ->title('เกิดข้อผิดพลาด')
-                                ->body('ไม่สามารถส่งการแจ้งเตือนได้: ' . $e->getMessage())
+                                ->body('ไม่สามารถส่งการแจ้งเตือนได้: '.$e->getMessage())
                                 ->danger()
                                 ->send();
                         }

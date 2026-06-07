@@ -3,7 +3,6 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ValueAnalysisResource\Pages;
-use App\Filament\Resources\ValueAnalysisResource\RelationManagers;
 use App\Models\ValueAnalysis;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -11,16 +10,19 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ValueAnalysisResource extends Resource
 {
     protected static ?string $model = ValueAnalysis::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
-    protected static ?string $navigationLabel = 'Vendor Approve';
+
+    protected static ?string $navigationLabel = 'Vendor Approve (VA)';
+
     protected static ?string $pluralModelLabel = 'Vendor Approve';
+
     protected static ?string $navigationGroup = 'Procurement Management';
+
     protected static ?int $navigationSort = 6;
 
     public static function canAccess(): bool
@@ -37,7 +39,7 @@ class ValueAnalysisResource extends Resource
                         Forms\Components\Placeholder::make('revision_info')
                             ->label('Revision')
                             ->content(fn ($record) => $record?->isRevision()
-                                ? 'Rev.' . $record->revision_number . ' (แก้ไขจาก ' . ($record->parentVa?->va_number ?? '-') . ')'
+                                ? 'Rev.'.$record->revision_number.' (แก้ไขจาก '.($record->parentVa?->va_number ?? '-').')'
                                 : 'ต้นฉบับ'),
                         Forms\Components\Select::make('amendment_type')
                             ->label('ประเภทการแก้ไข')
@@ -52,8 +54,7 @@ class ValueAnalysisResource extends Resource
                         Forms\Components\Hidden::make('parent_va_id'),
                         Forms\Components\Hidden::make('revision_number'),
                     ])
-                    ->visible(fn ($record, $operation) =>
-                        ($operation === 'edit' && $record?->isRevision()) ||
+                    ->visible(fn ($record, $operation) => ($operation === 'edit' && $record?->isRevision()) ||
                         ($operation === 'create' && request()->filled('parent_va_id'))
                     )
                     ->collapsible(),
@@ -73,15 +74,15 @@ class ValueAnalysisResource extends Resource
                                 ->relationship(
                                     name: 'purchaseRequisition',
                                     titleAttribute: 'pr_number',
-                                    modifyQueryUsing: fn (Builder $query) =>
-                                        $query->when(
-                                            session('company_id'),
-                                            fn ($q, $companyId) => $q->where('company_id', $companyId)
-                                        )
+                                    modifyQueryUsing: fn (Builder $query) => $query->when(
+                                        session('company_id'),
+                                        fn ($q, $companyId) => $q->where('company_id', $companyId)
+                                    )
                                 )
                                 ->getOptionLabelFromRecordUsing(function ($record) {
-                                    $title = !empty($record->title) ? " - {$record->title}" : '';
-                                    return $record->pr_number . $title;
+                                    $title = ! empty($record->title) ? " - {$record->title}" : '';
+
+                                    return $record->pr_number.$title;
                                 })
                                 ->searchable()
                                 ->preload()
@@ -137,7 +138,7 @@ class ValueAnalysisResource extends Resource
                                     if ($budget > 0) {
                                         $diff = $budget - $agreed;
                                         $pct = round(($diff / $budget) * 100, 2);
-                                        $set('savings_display', ($pct >= 0 ? 'ประหยัด ' : 'เกินงบ ') . abs($pct) . '% (฿' . number_format(abs($diff), 2) . ')');
+                                        $set('savings_display', ($pct >= 0 ? 'ประหยัด ' : 'เกินงบ ').abs($pct).'% (฿'.number_format(abs($diff), 2).')');
                                     } else {
                                         $set('savings_display', '-');
                                     }
@@ -250,15 +251,17 @@ class ValueAnalysisResource extends Resource
                     ->getStateUsing(function ($record) {
                         if ($record->total_budget && $record->agreed_amount && $record->total_budget > 0) {
                             $savings = (($record->total_budget - $record->agreed_amount) / $record->total_budget) * 100;
-                            return round($savings, 2) . '%';
+
+                            return round($savings, 2).'%';
                         }
+
                         return 'N/A';
                     })
                     ->color(fn ($state) => $state !== 'N/A' && floatval($state) > 0 ? 'success' : 'gray')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('revision_number')
                     ->label('Rev.')
-                    ->getStateUsing(fn ($record) => $record->isRevision() ? 'Rev.' . $record->revision_number : '-')
+                    ->getStateUsing(fn ($record) => $record->isRevision() ? 'Rev.'.$record->revision_number : '-')
                     ->badge()
                     ->color(fn ($record) => $record->isRevision() ? 'info' : 'gray')
                     ->toggleable(),

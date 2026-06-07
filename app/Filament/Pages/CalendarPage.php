@@ -2,16 +2,20 @@
 
 namespace App\Filament\Pages;
 
-use Filament\Pages\Page;
 use App\Models\GoodsReceipt;
 use Carbon\Carbon;
+use Filament\Pages\Page;
 
 class CalendarPage extends Page
 {
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
-    protected static ?string $navigationLabel = 'ปฏิทิน';
+
+    protected static ?string $navigationLabel = 'Calendar (ปฏิทิน)';
+
     protected static ?string $title = 'ปฏิทินการตรวจรับสินค้า (GR)';
+
     protected static string $view = 'filament.pages.calendar-page';
+
     protected static ?int $navigationSort = 2;
 
     public function getViewData(): array
@@ -19,7 +23,7 @@ class CalendarPage extends Page
         $calendarEvents = $this->getCalendarEvents();
 
         return [
-            'calendarEvents' => $calendarEvents
+            'calendarEvents' => $calendarEvents,
         ];
     }
 
@@ -34,7 +38,7 @@ class CalendarPage extends Page
         $companyId = session('company_id');
 
         // If no company selected, return empty events
-        if (!$companyId) {
+        if (! $companyId) {
             return collect();
         }
 
@@ -50,15 +54,15 @@ class CalendarPage extends Page
             $priority = $this->getPriority($daysUntilReceipt);
 
             $events->push([
-                'id' => 'gr_' . $gr->id,
-                'title' => 'GR: ' . $gr->gr_number,
+                'id' => 'gr_'.$gr->id,
+                'title' => 'GR: '.$gr->gr_number,
                 'start' => $gr->receipt_date->format('Y-m-d'),
                 'backgroundColor' => $this->getColor($priority),
                 'borderColor' => $this->getBorderColor($priority),
                 'extendedProps' => [
                     'entity_id' => $gr->id,
                     'entity_type' => 'gr',
-                    'description' => 'Vendor: ' . optional($gr->vendor)->name . ' | PO: ' . optional($gr->purchaseOrder)->po_number . ' | Status: ' . $gr->inspection_status_label,
+                    'description' => 'Vendor: '.optional($gr->vendor)->name.' | PO: '.optional($gr->purchaseOrder)->po_number.' | Status: '.$gr->inspection_status_label,
                     'priority' => $priority,
                 ],
             ]);
@@ -69,14 +73,19 @@ class CalendarPage extends Page
 
     private function getPriority(int $days): string
     {
-        if ($days < 0) return 'gr_past';
-        if ($days <= 3) return 'gr_recent';
+        if ($days < 0) {
+            return 'gr_past';
+        }
+        if ($days <= 3) {
+            return 'gr_recent';
+        }
+
         return 'gr_future';
     }
 
     private function getColor(string $priority): string
     {
-        return match($priority) {
+        return match ($priority) {
             'gr_past' => '#8b5cf6',
             'gr_recent' => '#a855f7',
             'gr_future' => '#c084fc',
@@ -86,7 +95,7 @@ class CalendarPage extends Page
 
     private function getBorderColor(string $priority): string
     {
-        return match($priority) {
+        return match ($priority) {
             'gr_past' => '#7c3aed',
             'gr_recent' => '#9333ea',
             'gr_future' => '#a855f7',

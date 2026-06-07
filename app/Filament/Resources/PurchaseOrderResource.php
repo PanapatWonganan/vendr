@@ -7,21 +7,27 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequisition;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
-use Filament\Notifications\Notification;
 
 class PurchaseOrderResource extends Resource
 {
     protected static ?string $model = PurchaseOrder::class;
+
     protected static ?string $navigationIcon = 'heroicon-o-shopping-cart';
-    protected static ?string $navigationLabel = 'Purchase Orders (ใบสั่งซื้อ)';
+
+    protected static ?string $navigationLabel = 'Purchase Orders (PO)';
+
     protected static ?string $modelLabel = 'ใบสั่งซื้อ';
+
     protected static ?string $pluralModelLabel = 'ใบสั่งซื้อ';
+
     protected static ?string $navigationGroup = 'Procurement Management';
+
     protected static ?int $navigationSort = 7;
 
     public static function canAccess(): bool
@@ -29,15 +35,21 @@ class PurchaseOrderResource extends Resource
         return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'department_head', 'auditor']) ?? false;
     }
 
+    // ข้อ 20: pending-approval count shown as a badge on this menu
+    // (replaces the standalone "PO รออนุมัติ" navigation item).
     public static function getNavigationBadge(): ?string
     {
         $user = auth()->user();
-        if (!$user) return null;
+        if (! $user) {
+            return null;
+        }
 
-        $query = static::getModel()::where('status', 'pending_approval');
+        $companyId = session('company_id');
+        $query = static::getModel()::where('status', 'pending_approval')
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId));
 
         // Filter based on user role
-        if (!$user->hasRole('admin') && !$user->hasRole('procurement_manager')) {
+        if (! $user->hasRole('admin') && ! $user->hasRole('procurement_manager') && ! $user->hasRole('procurement_officer') && ! $user->hasRole('auditor')) {
             if ($user->hasRole('department_head') && $user->department_id) {
                 $query->where('department_id', $user->department_id);
             } else {
@@ -46,14 +58,20 @@ class PurchaseOrderResource extends Resource
         }
 
         $count = $query->count();
+
         return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'PO รออนุมัติ';
     }
 
     public static function getNavigationBadgeColor(): ?string
     {
         return 'warning';
     }
-    
+
     public static function getNavigationItems(): array
     {
         return parent::getNavigationItems();
@@ -86,17 +104,17 @@ class PurchaseOrderResource extends Resource
                             ->relationship(
                                 name: 'purchaseRequisition',
                                 titleAttribute: 'pr_number',
-                                modifyQueryUsing: fn (\Illuminate\Database\Eloquent\Builder $query) =>
-                                    $query->when(
-                                        session('company_id'),
-                                        fn ($q, $companyId) => $q->where('company_id', $companyId)
-                                    )
+                                modifyQueryUsing: fn (\Illuminate\Database\Eloquent\Builder $query) => $query->when(
+                                    session('company_id'),
+                                    fn ($q, $companyId) => $q->where('company_id', $companyId)
+                                )
                                     ->whereIn('status', ['approved'])
                                     ->whereHas('valueAnalysis', fn ($va) => $va->where('status', 'approved'))
                             )
                             ->getOptionLabelFromRecordUsing(function ($record) {
                                 $va = $record->valueAnalysis;
                                 $vaLabel = $va ? " [VA: {$va->va_number}]" : '';
+
                                 return "{$record->pr_number} - {$record->title}{$vaLabel}";
                             })
                             ->searchable()
@@ -167,6 +185,7 @@ class PurchaseOrderResource extends Resource
                                     if (session('company_id') == 2) {
                                         return ['law_based' => 'แบบฟอร์มเชิงพาณิชย์'];
                                     }
+
                                     return [
                                         'act_based' => 'แบบฟอร์มตาม พ.ร.บ.',
                                         'law_based' => 'แบบฟอร์มเชิงพาณิชย์',
@@ -192,7 +211,7 @@ class PurchaseOrderResource extends Resource
                             ->columnSpanFull(),
                     ]),
 
-                // ข้อมูลบริษัทและผู้ติดต่อ  
+                // ข้อมูลบริษัทและผู้ติดต่อ
                 Forms\Components\Section::make('ข้อมูลบริษัทและผู้ติดต่อ')
                     ->schema([
                         Forms\Components\Grid::make(3)->schema([
@@ -201,11 +220,10 @@ class PurchaseOrderResource extends Resource
                                 ->relationship(
                                     name: 'vendor',
                                     titleAttribute: 'company_name',
-                                    modifyQueryUsing: fn (\Illuminate\Database\Eloquent\Builder $query) => 
-                                        $query->when(
-                                            session('company_id'),
-                                            fn ($q, $companyId) => $q->where('company_id', $companyId)
-                                        )
+                                    modifyQueryUsing: fn (\Illuminate\Database\Eloquent\Builder $query) => $query->when(
+                                        session('company_id'),
+                                        fn ($q, $companyId) => $q->where('company_id', $companyId)
+                                    )
                                 )
                                 ->required()
                                 ->searchable()
@@ -385,18 +403,18 @@ class PurchaseOrderResource extends Resource
                                                 $set('original_name', basename($state));
                                                 $set('file_name', $fileName);
                                                 $set('uploaded_by', \Illuminate\Support\Facades\Auth::id());
-                                                
+
                                                 // Set default values to avoid database errors
                                                 $set('file_type', 'application/octet-stream'); // Default mime type
                                                 $set('file_size', 0); // Default size, will be updated later
                                             }
                                         }),
-                                        
+
                                     Forms\Components\TextInput::make('original_name')
                                         ->label('ชื่อไฟล์')
                                         ->required()
                                         ->maxLength(255),
-                                        
+
                                     Forms\Components\Hidden::make('file_name'),
                                     Forms\Components\Hidden::make('file_type'),
                                     Forms\Components\Hidden::make('file_size'),
@@ -550,12 +568,11 @@ class PurchaseOrderResource extends Resource
                             ->addActionLabel('เพิ่มงวดการจ่าย')
                             ->reorderable(false)
                             ->collapsible()
-                            ->itemLabel(fn (array $state): ?string =>
-                                !empty($state['milestone_title']) ? $state['milestone_title'] : 'งวดการจ่าย'
+                            ->itemLabel(fn (array $state): ?string => ! empty($state['milestone_title']) ? $state['milestone_title'] : 'งวดการจ่าย'
                             ),
                     ])
                     ->collapsed()
-                    ->visible(fn (Forms\Get $get) => !empty($get('id')))
+                    ->visible(fn (Forms\Get $get) => ! empty($get('id')))
                     ->description('กำหนดงวดการจ่ายเงินสำหรับ PO นี้'),
             ]);
     }
@@ -622,7 +639,7 @@ class PurchaseOrderResource extends Resource
 
                 Tables\Columns\BadgeColumn::make('form_category')
                     ->label('แบบฟอร์ม')
-                    ->formatStateUsing(fn ($state) => match($state) {
+                    ->formatStateUsing(fn ($state) => match ($state) {
                         'act_based' => 'แบบฟอร์มตาม พ.ร.บ.',
                         'law_based' => 'แบบฟอร์มเชิงพาณิชย์',
                         default => $state,
@@ -646,9 +663,9 @@ class PurchaseOrderResource extends Resource
                         'gray' => 'closed',
                         'danger' => ['rejected', 'cancelled'],
                     ])
-                    ->formatStateUsing(fn ($state) => match($state) {
+                    ->formatStateUsing(fn ($state) => match ($state) {
                         'draft' => 'Draft',
-                        'pending_approval' => 'Pending Approval', 
+                        'pending_approval' => 'Pending Approval',
                         'approved' => 'Approved',
                         'sent_to_supplier' => 'Sent to Supplier',
                         'sent_to_vendor' => 'Sent to Vendor',
@@ -694,28 +711,28 @@ class PurchaseOrderResource extends Resource
                         'completed' => 'Completed',
                         'cancelled' => 'Cancelled',
                     ]),
-                    
+
                 Tables\Filters\SelectFilter::make('vendor_id')
                     ->relationship(
                         name: 'vendor',
                         titleAttribute: 'company_name',
-                        modifyQueryUsing: fn (\Illuminate\Database\Eloquent\Builder $query) => 
-                            $query->when(
-                                session('company_id'),
-                                fn ($q, $companyId) => $q->where('company_id', $companyId)
-                            )
+                        modifyQueryUsing: fn (\Illuminate\Database\Eloquent\Builder $query) => $query->when(
+                            session('company_id'),
+                            fn ($q, $companyId) => $q->where('company_id', $companyId)
+                        )
                     )
                     ->searchable()
                     ->preload(),
-                    
+
                 Tables\Filters\Filter::make('my_orders')
                     ->label('My Orders')
                     ->query(fn (Builder $query): Builder => $query->where('created_by', auth()->id())),
-                    
+
                 Tables\Filters\Filter::make('pending_my_approval')
                     ->label('Pending My Approval')
                     ->query(function (Builder $query): Builder {
                         $user = auth()->user();
+
                         return $query->where('status', 'pending_approval')
                             ->where(function ($query) use ($user) {
                                 if ($user->hasRole('admin') || $user->hasRole('procurement_manager')) {
@@ -725,6 +742,7 @@ class PurchaseOrderResource extends Resource
                                 if ($user->hasRole('department_head') && $user->department_id) {
                                     return $query->where('department_id', $user->department_id);
                                 }
+
                                 // Fallback: ไม่เห็นอะไรเลย
                                 return $query->whereNull('id');
                             });
@@ -758,7 +776,7 @@ class PurchaseOrderResource extends Resource
                             'approved_by' => $user->id,
                             'approved_at' => now(),
                             'notes' => $data['approval_notes']
-                                ? ($record->notes ? $record->notes . "\n\n[อนุมัติ] " . $data['approval_notes'] : '[อนุมัติ] ' . $data['approval_notes'])
+                                ? ($record->notes ? $record->notes."\n\n[อนุมัติ] ".$data['approval_notes'] : '[อนุมัติ] '.$data['approval_notes'])
                                 : $record->notes,
                         ]);
 
@@ -779,7 +797,7 @@ class PurchaseOrderResource extends Resource
 
                         Notification::make()
                             ->title('อนุมัติเรียบร้อย')
-                            ->body("อนุมัติ {$record->po_number} แล้ว" .
+                            ->body("อนุมัติ {$record->po_number} แล้ว".
                                 ($record->amendment_number > 0 ? " (แก้ไขครั้งที่ {$record->amendment_number})" : ''))
                             ->success()
                             ->send();
@@ -847,8 +865,7 @@ class PurchaseOrderResource extends Resource
                     ->label('ขอแก้ไข PO')
                     ->icon('heroicon-o-pencil-square')
                     ->color('warning')
-                    ->visible(fn ($record) =>
-                        $record->canRequestAmendment() &&
+                    ->visible(fn ($record) => $record->canRequestAmendment() &&
                         auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager']))
                     ->requiresConfirmation()
                     ->modalHeading(fn ($record) => "ขอแก้ไข {$record->po_number}")
@@ -876,7 +893,7 @@ class PurchaseOrderResource extends Resource
 
                             Notification::make()
                                 ->title('สร้าง VA Revision สำเร็จ')
-                                ->body('VA ' . $vaRevision->va_number . ' (Rev.' . $vaRevision->revision_number . ') ถูกสร้างแล้ว กรุณาแก้ไขและส่งอนุมัติ')
+                                ->body('VA '.$vaRevision->va_number.' (Rev.'.$vaRevision->revision_number.') ถูกสร้างแล้ว กรุณาแก้ไขและส่งอนุมัติ')
                                 ->success()
                                 ->send();
 
@@ -911,13 +928,17 @@ class PurchaseOrderResource extends Resource
                             $approved = 0;
 
                             foreach ($records as $record) {
-                                if ($record->status !== 'pending_approval') continue;
+                                if ($record->status !== 'pending_approval') {
+                                    continue;
+                                }
 
                                 // Permission check
                                 $canApprove = $user->hasAnyRole(['admin', 'procurement_manager'])
                                     || ($user->hasRole('department_head') && $user->department_id === $record->department_id);
 
-                                if (!$canApprove) continue;
+                                if (! $canApprove) {
+                                    continue;
+                                }
 
                                 $record->update([
                                     'status' => 'approved',

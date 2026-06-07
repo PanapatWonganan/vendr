@@ -38,7 +38,7 @@ class VendorEvaluationResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
 
-    protected static ?string $navigationLabel = 'การประเมินผลงาน';
+    protected static ?string $navigationLabel = 'Performance Evaluation';
 
     protected static ?string $modelLabel = 'การประเมินผลงาน';
 
@@ -128,16 +128,39 @@ class VendorEvaluationResource extends Resource
                                 }
                             }),
 
+                        // ข้อ 17: ดึงจำนวนงวดจากหน้าตรวจรับ (GR) ของ PO ที่เลือก
+                        // และยังพิมพ์/เพิ่มงวดเองได้ (createOptionForm)
                         Select::make('payment_term_number')
                             ->label('งวดที่ชำระ')
-                            ->options([
-                                1 => 'งวดที่ 1',
-                                2 => 'งวดที่ 2',
-                                3 => 'งวดที่ 3',
-                                4 => 'งวดที่ 4',
-                                5 => 'งวดที่ 5',
+                            ->options(function (Get $get) {
+                                $poId = $get('purchase_order_id');
+                                if (! $poId) {
+                                    // fallback default 1-5 จนกว่าจะเลือก PO
+                                    return collect(range(1, 5))->mapWithKeys(fn ($n) => [$n => "งวดที่ {$n}"])->all();
+                                }
+
+                                // จำนวนงวด = มากที่สุดระหว่าง จำนวน GR / จำนวน milestone / 1
+                                $grCount = \App\Models\GoodsReceipt::where('purchase_order_id', $poId)->count();
+                                $maxGrNumber = (int) \App\Models\GoodsReceipt::where('purchase_order_id', $poId)->max('delivery_milestone');
+                                $msCount = \App\Models\PaymentMilestone::where('purchase_order_id', $poId)->count();
+                                $count = max($grCount, $maxGrNumber, $msCount, 1);
+
+                                return collect(range(1, $count))
+                                    ->mapWithKeys(fn ($n) => [$n => "งวดที่ {$n}"])
+                                    ->all();
+                            })
+                            ->reactive()
+                            ->required()
+                            // อนุญาตให้พิมพ์เพิ่มงวดเองได้
+                            ->createOptionForm([
+                                TextInput::make('value')
+                                    ->label('งวดที่')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->required(),
                             ])
-                            ->required(),
+                            ->createOptionUsing(fn (array $data) => (int) $data['value'])
+                            ->helperText('ดึงจำนวนงวดจากหน้าตรวจรับของ PO ที่เลือก หรือเพิ่มงวดเองได้'),
 
                         TextInput::make('project_name')
                             ->label('ชื่องาน')
@@ -207,6 +230,7 @@ class VendorEvaluationResource extends Resource
 
                                 DatePicker::make('evaluation_date')
                                     ->label('วันที่ประเมิน')
+                                    ->displayFormat('d/m/Y') // ข้อ 16
                                     ->required()
                                     ->default(now()),
                             ])
@@ -216,31 +240,24 @@ class VendorEvaluationResource extends Resource
 
                         DatePicker::make('evaluation_date')
                             ->label('วันที่ประเมินรวม')
+                            ->displayFormat('d/m/Y') // ข้อ 16
                             ->required()
                             ->default(now()),
                     ]),
 
-                Section::make('ข้อมูลการประเมิน')
-                    ->schema([
-                        Hidden::make('company_id')
-                            ->default(fn () => session('company_id')),
-
-                        Hidden::make('evaluator_id')
-                            ->default(fn () => auth()->id()),
-
-                        TextInput::make('evaluation_period')
-                            ->label('รอบการประเมิน')
-                            ->placeholder('เช่น Q1-2024, Q2-2024')
-                            ->default(fn () => 'Q'.ceil(date('n') / 3).'-'.date('Y')),
-
-                        DatePicker::make('period_start')
-                            ->label('วันที่เริ่มต้นรอบประเมิน')
-                            ->default(now()->startOfQuarter()),
-
-                        DatePicker::make('period_end')
-                            ->label('วันที่สิ้นสุดรอบประเมิน')
-                            ->default(now()->endOfQuarter()),
-                    ])->columns(3)->collapsed(),
+                // ข้อ 14: ตัดส่วน "ข้อมูลการประเมิน" (รอบประเมิน/วันเริ่ม/วันสิ้นสุด)
+                // ออกจากฟอร์มตามที่ลูกค้าแจ้ง — แต่ยังคงเก็บค่า default ไว้เบื้องหลัง
+                // (ใช้ในรายงาน/การคำนวณคะแนนรายไตรมาส) ผ่าน Hidden fields
+                Hidden::make('company_id')
+                    ->default(fn () => session('company_id')),
+                Hidden::make('evaluator_id')
+                    ->default(fn () => auth()->id()),
+                Hidden::make('evaluation_period')
+                    ->default(fn () => 'Q'.ceil(date('n') / 3).'-'.date('Y')),
+                Hidden::make('period_start')
+                    ->default(fn () => now()->startOfQuarter()->format('Y-m-d')),
+                Hidden::make('period_end')
+                    ->default(fn () => now()->endOfQuarter()->format('Y-m-d')),
 
                 Section::make('หัวข้อการประเมิน')
                     ->schema([
@@ -531,6 +548,7 @@ class VendorEvaluationResource extends Resource
     {
         return [
             RelationManagers\EvaluationItemsRelationManager::class,
+            RelationManagers\AttachmentsRelationManager::class,
         ];
     }
 
