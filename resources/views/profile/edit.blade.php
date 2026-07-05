@@ -45,7 +45,7 @@
                 <div class="mb-3 p-3 bg-light rounded">
                     <div class="d-flex justify-content-between">
                         <span class="text-muted">วันที่ลงทะเบียน</span>
-                        <span class="fw-semibold">{{ auth()->user()->created_at->format('d M Y') }}</span>
+                        <span class="fw-semibold">{{ auth()->user()->created_at->format('d/m/Y') }}</span>
                     </div>
                 </div>
 
@@ -55,7 +55,7 @@
                         <i class="fas fa-check-circle text-success me-2"></i>
                         <div>
                             <span class="fw-semibold">ยืนยันอีเมลแล้ว</span>
-                            <span class="d-block text-muted small">{{ auth()->user()->email_verified_at->format('d M Y H:i') }}</span>
+                            <span class="d-block text-muted small">{{ auth()->user()->email_verified_at->format('d/m/Y H:i') }}</span>
                         </div>
                     </div>
                 </div>
