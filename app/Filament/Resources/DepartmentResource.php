@@ -3,7 +3,6 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\DepartmentResource\Pages;
-use App\Filament\Resources\DepartmentResource\RelationManagers;
 use App\Models\Department;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -11,17 +10,21 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class DepartmentResource extends Resource
 {
     protected static ?string $model = Department::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-building-library';
+
     protected static ?string $navigationLabel = 'Departments (แผนก)';
+
     protected static ?string $modelLabel = 'แผนก';
+
     protected static ?string $pluralModelLabel = 'แผนก';
-    protected static ?string $navigationGroup = 'Master Data (ข้อมูลหลัก)';
+
+    protected static ?string $navigationGroup = 'Master Data';
+
     protected static ?int $navigationSort = 2;
 
     public static function canAccess(): bool

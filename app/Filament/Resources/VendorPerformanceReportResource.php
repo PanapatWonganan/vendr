@@ -4,28 +4,33 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\VendorPerformanceReportResource\Pages;
 use App\Models\Vendor;
-use App\Models\VendorScore;
 use App\Models\VendorEvaluation;
+use App\Models\VendorScore;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
+use Filament\Support\Enums\FontWeight;
 use Filament\Tables;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Columns\Layout\Split;
+use Filament\Tables\Columns\Layout\Stack;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Filament\Tables\Actions\Action;
-use Filament\Support\Enums\FontWeight;
-use Filament\Tables\Columns\Layout\Stack;
-use Filament\Tables\Columns\Layout\Split;
 
 class VendorPerformanceReportResource extends Resource
 {
     protected static ?string $model = Vendor::class;
-    
+
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
+
     protected static ?string $navigationLabel = 'Vendor Performance Report (รายงานผลการดำเนินงานผู้ขาย)';
+
     protected static ?string $modelLabel = 'รายงานผลการดำเนินงานผู้ขาย';
+
     protected static ?string $pluralModelLabel = 'รายงานผลการดำเนินงานผู้ขาย';
-    protected static ?string $navigationGroup = 'Master Data (ข้อมูลหลัก)';
+
+    protected static ?string $navigationGroup = 'Master Data';
+
     protected static ?int $navigationSort = 4;
 
     public static function canAccess(): bool
@@ -60,7 +65,7 @@ class VendorPerformanceReportResource extends Resource
                             ->badge()
                             ->color('gray'),
                     ]),
-                    
+
                     Stack::make([
                         Tables\Columns\TextColumn::make('current_score')
                             ->label('Current Score')
@@ -71,6 +76,7 @@ class VendorPerformanceReportResource extends Resource
                                     ->whereNull('month')
                                     ->latest('year')
                                     ->first();
+
                                 return $score ? number_format($score->average_score, 2) : 'N/A';
                             })
                             ->weight(FontWeight::Bold)
@@ -81,9 +87,16 @@ class VendorPerformanceReportResource extends Resource
                                     ->whereNull('month')
                                     ->latest('year')
                                     ->first();
-                                if (!$score) return 'gray';
-                                if ($score->average_score >= 3.5) return 'success';
-                                if ($score->average_score >= 2.5) return 'warning';
+                                if (! $score) {
+                                    return 'gray';
+                                }
+                                if ($score->average_score >= 3.5) {
+                                    return 'success';
+                                }
+                                if ($score->average_score >= 2.5) {
+                                    return 'warning';
+                                }
+
                                 return 'danger';
                             }),
                         Tables\Columns\TextColumn::make('current_grade')
@@ -95,6 +108,7 @@ class VendorPerformanceReportResource extends Resource
                                     ->whereNull('month')
                                     ->latest('year')
                                     ->first();
+
                                 return $score ? $score->grade : 'N/A';
                             })
                             ->badge()
@@ -105,8 +119,11 @@ class VendorPerformanceReportResource extends Resource
                                     ->whereNull('month')
                                     ->latest('year')
                                     ->first();
-                                if (!$score) return 'gray';
-                                return match($score->grade) {
+                                if (! $score) {
+                                    return 'gray';
+                                }
+
+                                return match ($score->grade) {
                                     'A' => 'success',
                                     'B' => 'primary',
                                     'C' => 'warning',
@@ -116,7 +133,7 @@ class VendorPerformanceReportResource extends Resource
                             }),
                     ])->alignEnd(),
                 ]),
-                
+
                 Tables\Columns\TextColumn::make('evaluation_count')
                     ->label('Evaluations')
                     ->state(function (Vendor $record) {
@@ -126,7 +143,7 @@ class VendorPerformanceReportResource extends Resource
                     })
                     ->badge()
                     ->color('info'),
-                    
+
                 Tables\Columns\TextColumn::make('avg_overall_score')
                     ->label('Avg Score')
                     ->state(function (Vendor $record) {
@@ -134,9 +151,10 @@ class VendorPerformanceReportResource extends Resource
                             ->where('company_id', session('company_id'))
                             ->whereNotNull('overall_score')
                             ->avg('overall_score');
+
                         return $avg ? number_format($avg / 25, 1) : 'N/A'; // Convert from percentage to 4-point scale
                     }),
-                    
+
                 Tables\Columns\TextColumn::make('last_evaluation')
                     ->label('Last Evaluated')
                     ->state(function (Vendor $record) {
@@ -144,6 +162,7 @@ class VendorPerformanceReportResource extends Resource
                             ->where('company_id', session('company_id'))
                             ->latest()
                             ->first();
+
                         return $lastEval ? $lastEval->evaluation_date->format('d/m/Y') : 'Never';
                     })
                     ->color('gray'),
@@ -153,7 +172,7 @@ class VendorPerformanceReportResource extends Resource
                     ->label('Grade Filter')
                     ->options([
                         'A' => 'Grade A',
-                        'B' => 'Grade B', 
+                        'B' => 'Grade B',
                         'C' => 'Grade C',
                         'D' => 'Grade D',
                     ])
@@ -161,17 +180,17 @@ class VendorPerformanceReportResource extends Resource
                         if (empty($data['value'])) {
                             return $query;
                         }
-                        
+
                         $companyId = session('company_id');
                         $vendorIds = VendorScore::where('company_id', $companyId)
                             ->whereNull('quarter')
                             ->whereNull('month')
                             ->where('grade', $data['value'])
                             ->pluck('vendor_id');
-                            
+
                         return $query->whereIn('id', $vendorIds);
                     }),
-                    
+
                 Tables\Filters\Filter::make('score_range')
                     ->form([
                         Forms\Components\TextInput::make('min_score')
@@ -188,16 +207,17 @@ class VendorPerformanceReportResource extends Resource
                         $vendorIds = VendorScore::where('company_id', $companyId)
                             ->whereNull('quarter')
                             ->whereNull('month')
-                            ->when($data['min_score'], fn($q) => $q->where('average_score', '>=', $data['min_score']))
-                            ->when($data['max_score'], fn($q) => $q->where('average_score', '<=', $data['max_score']))
+                            ->when($data['min_score'], fn ($q) => $q->where('average_score', '>=', $data['min_score']))
+                            ->when($data['max_score'], fn ($q) => $q->where('average_score', '<=', $data['max_score']))
                             ->pluck('vendor_id');
-                            
+
                         return $query->whereIn('id', $vendorIds);
                     }),
-                    
+
                 Tables\Filters\SelectFilter::make('work_category')
                     ->options(function () {
                         $companyId = session('company_id');
+
                         return Vendor::where('company_id', $companyId)
                             ->distinct()
                             ->pluck('work_category', 'work_category')
@@ -209,14 +229,14 @@ class VendorPerformanceReportResource extends Resource
                     ->label('View Details')
                     ->icon('heroicon-o-eye')
                     ->color('info')
-                    ->modalHeading(fn (Vendor $record) => 'Performance Details: ' . $record->company_name)
+                    ->modalHeading(fn (Vendor $record) => 'Performance Details: '.$record->company_name)
                     ->modalContent(function (Vendor $record) {
                         $evaluations = VendorEvaluation::where('vendor_id', $record->id)
                             ->where('company_id', session('company_id'))
                             ->latest()
                             ->limit(5)
                             ->get();
-                            
+
                         $score = VendorScore::where('vendor_id', $record->id)
                             ->where('company_id', session('company_id'))
                             ->latest()
@@ -241,15 +261,16 @@ class VendorPerformanceReportResource extends Resource
             'index' => Pages\ListVendorPerformanceReports::route('/'),
         ];
     }
-    
+
     public static function canCreate(): bool
     {
         return false;
     }
-    
+
     public static function getEloquentQuery(): Builder
     {
         $companyId = session('company_id');
+
         return parent::getEloquentQuery()->where('company_id', $companyId);
     }
 }
