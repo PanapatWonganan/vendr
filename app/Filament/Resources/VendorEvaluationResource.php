@@ -392,6 +392,34 @@ class VendorEvaluationResource extends Resource
                         Textarea::make('areas_for_improvement')
                             ->label('จุดที่ควรพัฒนา')
                             ->rows(3),
+
+                        // ข้อ 13: แนบไฟล์ประกอบการประเมินได้ตั้งแต่ตอนสร้าง
+                        // เก็บเข้า ProcurementAttachment (polymorphic) ผ่าน afterCreate ของหน้า Create
+                        // ใช้ dehydrated(false) เพื่อไม่ให้ Filament พยายามบันทึกลง column ของ vendor_evaluations
+                        Forms\Components\FileUpload::make('attachment_files')
+                            ->label('เอกสารแนบ (สรุป/ความเห็น)')
+                            ->helperText('แนบไฟล์ PDF/รูปภาพ/Word/Excel ได้หลายไฟล์ — เพิ่มเติมภายหลังได้ในหน้าแก้ไข')
+                            ->multiple()
+                            ->disk('public')
+                            ->directory('vendor-evaluations')
+                            ->acceptedFileTypes([
+                                'application/pdf',
+                                'image/jpeg',
+                                'image/png',
+                                'image/jpg',
+                                'application/msword',
+                                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                'application/vnd.ms-excel',
+                                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            ])
+                            ->maxSize(51200) // 50MB
+                            ->previewable(true)
+                            ->downloadable()
+                            ->visibility('public')
+                            ->storeFiles(false)
+                            ->dehydrated(false)
+                            // แสดงเฉพาะหน้าสร้าง — หน้าแก้ไขใช้ตาราง "เอกสารแนบ" (Relation Manager) ด้านล่างแทน
+                            ->visibleOn('create'),
                     ])->columns(1),
             ]);
     }
