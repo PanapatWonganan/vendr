@@ -1,7 +1,5 @@
 <x-filament-panels::page class="fi-dashboard-page">
-    @if (method_exists($this, 'filtersForm'))
-        {{ $this->filtersForm }}
-    @endif
+    {{-- ตัวกรองปีถูกย้ายไปแสดงบนแถวหัวข้อแล้ว (ดู Dashboard::getHeader) --}}
 
     <x-filament-widgets::widgets
         :columns="$this->getColumns()"

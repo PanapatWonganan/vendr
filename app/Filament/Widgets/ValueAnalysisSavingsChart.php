@@ -3,14 +3,21 @@
 namespace App\Filament\Widgets;
 
 use App\Models\ValueAnalysis;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
 
 class ValueAnalysisSavingsChart extends ApexChartWidget
 {
+    use InteractsWithPageFilters;
+
     protected static ?string $chartId = 'valueAnalysisSavingsChart';
+
     protected static ?string $heading = 'ผลการวิเคราะห์มูลค่า (Value Analysis)';
+
     protected static ?string $subheading = 'สรุปการต่อรองราคาและประหยัดงบประมาณ';
+
     protected static ?int $sort = 4;
+
     protected static ?int $contentHeight = 300;
 
     public static function canView(): bool
@@ -21,6 +28,7 @@ class ValueAnalysisSavingsChart extends ApexChartWidget
     protected function getOptions(): array
     {
         $companyId = session('company_id') ?: 2;
+        $year = $this->filters['year'] ?? (int) date('Y');
 
         // Get Purchase Requisitions for this company to filter VAs
         $prIds = \App\Models\PurchaseRequisition::where('company_id', $companyId)->pluck('id');
@@ -28,6 +36,7 @@ class ValueAnalysisSavingsChart extends ApexChartWidget
         // Get all approved Value Analysis records for this company
         $valueAnalyses = ValueAnalysis::where('status', 'approved')
             ->whereIn('purchase_requisition_id', $prIds)
+            ->when($year, fn ($q) => $q->whereRaw('YEAR(COALESCE(analysis_date, created_at)) = ?', [$year]))
             ->whereNotNull('total_budget')
             ->whereNotNull('agreed_amount')
             ->where('total_budget', '>', 0)
@@ -65,7 +74,7 @@ class ValueAnalysisSavingsChart extends ApexChartWidget
                         'margin' => 0,
                         'dropShadow' => [
                             'enabled' => false,
-                        ]
+                        ],
                     ],
                     'dataLabels' => [
                         'name' => [
@@ -81,16 +90,16 @@ class ValueAnalysisSavingsChart extends ApexChartWidget
                             'fontWeight' => '700',
                             'color' => '#065f46',
                             'offsetY' => 10,
-                            'formatter' => 'function(val) { return Math.round(val) + "%" }'
+                            'formatter' => 'function(val) { return Math.round(val) + "%" }',
                         ],
                         'total' => [
                             'show' => true,
                             'label' => 'ประหยัดรวม',
                             'fontSize' => '14px',
                             'color' => '#6b7280',
-                        ]
-                    ]
-                ]
+                        ],
+                    ],
+                ],
             ],
             'labels' => ['ประหยัดได้'],
             'title' => [
@@ -100,34 +109,34 @@ class ValueAnalysisSavingsChart extends ApexChartWidget
                     'fontSize' => '16px',
                     'fontWeight' => '600',
                     'color' => '#065f46',
-                ]
+                ],
             ],
             'subtitle' => [
-                'text' => 'ประหยัด ' . number_format($totalSavings / 1000000, 2) . ' ล้านบาท จาก ' . $totalProjects . ' โครงการ',
+                'text' => 'ประหยัด '.number_format($totalSavings / 1000000, 2).' ล้านบาท จาก '.$totalProjects.' โครงการ',
                 'align' => 'center',
                 'style' => [
                     'fontSize' => '12px',
                     'color' => '#6b7280',
-                ]
+                ],
             ],
             'tooltip' => [
                 'enabled' => true,
                 'formatter' => 'function(val) {
                     return "ประหยัด: " + Math.round(val) + "%"
-                }'
+                }',
             ],
             'responsive' => [
                 [
                     'breakpoint' => 480,
                     'options' => [
                         'chart' => [
-                            'width' => 200
+                            'width' => 200,
                         ],
                         'legend' => [
-                            'position' => 'bottom'
-                        ]
-                    ]
-                ]
+                            'position' => 'bottom',
+                        ],
+                    ],
+                ],
             ],
         ];
     }
@@ -160,16 +169,16 @@ class ValueAnalysisSavingsChart extends ApexChartWidget
                             'show' => true,
                             'fontSize' => '24px',
                             'color' => '#9ca3af',
-                            'formatter' => 'function(val) { return "0%" }'
+                            'formatter' => 'function(val) { return "0%" }',
                         ],
                         'total' => [
                             'show' => true,
                             'label' => 'ประหยัดรวม',
                             'fontSize' => '14px',
                             'color' => '#9ca3af',
-                        ]
-                    ]
-                ]
+                        ],
+                    ],
+                ],
             ],
             'labels' => ['ไม่มีข้อมูล'],
             'title' => [
@@ -178,7 +187,7 @@ class ValueAnalysisSavingsChart extends ApexChartWidget
                 'style' => [
                     'fontSize' => '16px',
                     'color' => '#9ca3af',
-                ]
+                ],
             ],
         ];
     }

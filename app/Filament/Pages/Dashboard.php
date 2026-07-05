@@ -2,26 +2,25 @@
 
 namespace App\Filament\Pages;
 
-use App\Filament\Widgets\DeliveryCalendarWidget;
-use App\Filament\Widgets\UpcomingDeliveries;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Form;
 use Filament\Pages\Dashboard as BaseDashboard;
 use Filament\Pages\Dashboard\Concerns\HasFiltersForm;
+use Illuminate\Contracts\View\View;
 
 class Dashboard extends BaseDashboard
 {
     use HasFiltersForm;
 
-    public function getWidgets(): array
+    // ข้อ 19: ตัวเลือกปีบนหน้า Dashboard — วางบนแถวเดียวกับหัวข้อ (มุมขวาบน)
+    public function getHeader(): ?View
     {
-        return [
-            DeliveryCalendarWidget::class,
-            UpcomingDeliveries::class,
-        ];
+        return view('filament.pages.dashboard-header', [
+            'heading' => $this->getHeading(),
+            'filtersForm' => $this->getFiltersForm(),
+        ]);
     }
 
-    // ข้อ 19: ตัวเลือกปีบนหน้า Dashboard
     public function filtersForm(Form $form): Form
     {
         $currentYear = (int) date('Y');
@@ -30,9 +29,11 @@ class Dashboard extends BaseDashboard
             ->all();
 
         return $form
+            // คอลัมน์เดียว เพื่อให้ dropdown แคบพอดี ไม่กินเต็มความกว้าง
+            ->columns(1)
             ->schema([
                 Select::make('year')
-                    ->label('Year (ปี)')
+                    ->label('ปี (Year)')
                     ->options($years)
                     ->default($currentYear)
                     ->selectablePlaceholder(false)

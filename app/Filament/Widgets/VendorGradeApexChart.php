@@ -3,10 +3,13 @@
 namespace App\Filament\Widgets;
 
 use App\Models\VendorScore;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
 
 class VendorGradeApexChart extends ApexChartWidget
 {
+    use InteractsWithPageFilters;
+
     public static function canView(): bool
     {
         return auth()->user()?->hasAnyRole(['admin', 'procurement_officer', 'procurement_manager', 'auditor']) ?? false;
@@ -14,22 +17,16 @@ class VendorGradeApexChart extends ApexChartWidget
 
     /**
      * Chart Id
-     *
-     * @var string
      */
     protected static ?string $chartId = 'vendorGradeApexChart';
 
     /**
      * Widget Title
-     *
-     * @var string|null
      */
     protected static ?string $heading = 'การกระจายเกรดผู้ขาย';
 
     /**
      * Widget Subheading
-     *
-     * @var string|null
      */
     protected static ?string $subheading = 'แสดงเปอร์เซ็นต์การกระจายเกรดของผู้ขายที่ได้รับการประเมิน';
 
@@ -46,16 +43,16 @@ class VendorGradeApexChart extends ApexChartWidget
     /**
      * Chart options (series, labels, types, size, animations...)
      * https://apexcharts.com/docs/options
-     *
-     * @return array
      */
     protected function getOptions(): array
     {
         $companyId = session('company_id') ?: 2; // Default to company ID 2 for testing
+        $year = $this->filters['year'] ?? (int) date('Y');
 
-        // Get latest scores for each vendor
+        // Get latest scores for each vendor (กรองตามปีประเมินจากคอลัมน์ year โดยตรง)
         $scores = VendorScore::where('company_id', $companyId)
             ->whereNotNull('weighted_grade')
+            ->when($year, fn ($q) => $q->where('year', $year))
             ->get()
             ->groupBy('vendor_id')
             ->map(function ($vendorScores) {
@@ -87,7 +84,7 @@ class VendorGradeApexChart extends ApexChartWidget
                                     'fontSize' => '16px',
                                     'fontWeight' => '600',
                                     'color' => '#374151',
-                                    'formatter' => 'function (w) { return "0 ราย" }'
+                                    'formatter' => 'function (w) { return "0 ราย" }',
                                 ],
                                 'value' => [
                                     'fontSize' => '24px',
@@ -115,7 +112,7 @@ class VendorGradeApexChart extends ApexChartWidget
         // Count grades
         $gradeCounts = [
             'A' => $scores->where('weighted_grade', 'A')->count(),
-            'B' => $scores->where('weighted_grade', 'B')->count(), 
+            'B' => $scores->where('weighted_grade', 'B')->count(),
             'C' => $scores->where('weighted_grade', 'C')->count(),
             'D' => $scores->where('weighted_grade', 'D')->count(),
         ];
@@ -148,13 +145,13 @@ class VendorGradeApexChart extends ApexChartWidget
                                 'fontSize' => '16px',
                                 'fontWeight' => '600',
                                 'color' => '#374151',
-                                'formatter' => "function (w) { return '{$totalVendors} ราย' }"
+                                'formatter' => "function (w) { return '{$totalVendors} ราย' }",
                             ],
                             'value' => [
                                 'fontSize' => '24px',
                                 'fontWeight' => '700',
                                 'color' => '#111827',
-                                'formatter' => 'function (val) { return val }'
+                                'formatter' => 'function (val) { return val }',
                             ],
                             'name' => [
                                 'fontSize' => '14px',
@@ -170,7 +167,7 @@ class VendorGradeApexChart extends ApexChartWidget
                     'formatter' => "function(val, opts) { 
                         var percent = Math.round((val / {$totalVendors}) * 100);
                         return val + ' ราย (' + percent + '%)';
-                    }"
+                    }",
                 ],
             ],
             'dataLabels' => [

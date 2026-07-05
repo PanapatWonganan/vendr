@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class ValueAnalysisResource extends Resource
 {
+    use \App\Filament\Resources\Concerns\HasYearFilter;
+
     protected static ?string $model = ValueAnalysis::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
@@ -289,7 +291,8 @@ class ValueAnalysisResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                // กรองตามปีของเอกสาร (วันที่วิเคราะห์) ไม่ใช่วันที่สร้างในระบบ
+                static::yearFilter('analysis_date'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

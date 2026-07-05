@@ -31,31 +31,36 @@ class DashboardStatsOverview extends BaseWidget
         // ข้อ 19: filter ตามปีที่เลือกบน Dashboard (default = ปีปัจจุบัน)
         $year = $this->filters['year'] ?? (int) date('Y');
 
-        // Reusable scope: company + year (on created_at)
-        $scope = function ($q) use ($companyId, $year) {
+        // กรองตาม "ปีของเอกสารจริง" (business date) ไม่ใช่ created_at ซึ่งเป็นวันที่ import
+        // PR ใช้ request_date, PO ใช้ order_date, VA ใช้ analysis_date — มี fallback เป็น created_at
+        $prScope = function ($q) use ($companyId, $year) {
             return $q
                 ->when($companyId, fn ($qq) => $qq->where('company_id', $companyId))
-                ->when($year, fn ($qq) => $qq->whereYear('created_at', $year));
+                ->when($year, fn ($qq) => $qq->whereRaw('YEAR(COALESCE(request_date, created_at)) = ?', [$year]));
+        };
+        $poScope = function ($q) use ($companyId, $year) {
+            return $q
+                ->when($companyId, fn ($qq) => $qq->where('company_id', $companyId))
+                ->when($year, fn ($qq) => $qq->whereRaw('YEAR(COALESCE(order_date, created_at)) = ?', [$year]));
         };
 
-        // Purchase Requisition Stats - filter by company + year
-        $totalPRs = PurchaseRequisition::tap($scope)->count();
-        $pendingPRs = PurchaseRequisition::tap($scope)->where('status', 'pending_approval')->count();
-        $directPurchasePRs = PurchaseRequisition::tap($scope)
+        // Purchase Requisition Stats - filter by company + business year
+        $totalPRs = PurchaseRequisition::tap($prScope)->count();
+        $pendingPRs = PurchaseRequisition::tap($prScope)->where('status', 'pending_approval')->count();
+        $directPurchasePRs = PurchaseRequisition::tap($prScope)
             ->whereIn('pr_type', ['direct_small', 'direct_medium'])->count();
 
-        // Purchase Order Stats - filter by company + year
-        $totalPOs = PurchaseOrder::tap($scope)->count();
-        $pendingPOs = PurchaseOrder::tap($scope)->where('status', 'pending_approval')->count();
-        $approvedPOs = PurchaseOrder::tap($scope)->where('status', 'approved')->count();
+        // Purchase Order Stats - filter by company + business year
+        $totalPOs = PurchaseOrder::tap($poScope)->count();
+        $pendingPOs = PurchaseOrder::tap($poScope)->where('status', 'pending_approval')->count();
+        $approvedPOs = PurchaseOrder::tap($poScope)->where('status', 'approved')->count();
 
-        // Value Analysis Stats - filter by company (through PR) + year (on VA created_at)
-        $totalVA = ValueAnalysis::when($companyId, fn ($q) => $q->whereHas('purchaseRequisition', fn ($query) => $query->where('company_id', $companyId)))
-            ->when($year, fn ($q) => $q->whereYear('created_at', $year))
-            ->count();
-        $pendingVA = ValueAnalysis::when($companyId, fn ($q) => $q->whereHas('purchaseRequisition', fn ($query) => $query->where('company_id', $companyId)))
-            ->when($year, fn ($q) => $q->whereYear('created_at', $year))
-            ->where('status', 'in_progress')->count();
+        // Value Analysis Stats - filter by company (through PR) + business year (analysis_date)
+        $vaScope = fn ($q) => $q
+            ->when($companyId, fn ($query) => $query->whereHas('purchaseRequisition', fn ($sub) => $sub->where('company_id', $companyId)))
+            ->when($year, fn ($query) => $query->whereRaw('YEAR(COALESCE(analysis_date, created_at)) = ?', [$year]));
+        $totalVA = ValueAnalysis::query()->tap($vaScope)->count();
+        $pendingVA = ValueAnalysis::query()->tap($vaScope)->where('status', 'in_progress')->count();
 
         // Contract Approval Stats - filter by company
         $totalContracts = ContractApproval::when($companyId, fn ($q) => $q->where('company_id', $companyId))->count();

@@ -3,11 +3,14 @@
 namespace App\Filament\Widgets;
 
 use App\Services\SlaService;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class SlaPerformanceOverview extends BaseWidget
 {
+    use InteractsWithPageFilters;
+
     protected static ?int $sort = 2;
 
     public static function canView(): bool
@@ -18,8 +21,9 @@ class SlaPerformanceOverview extends BaseWidget
     protected function getStats(): array
     {
         $companyId = session('company_id');
+        $year = $this->filters['year'] ?? (int) date('Y');
         $slaService = app(SlaService::class);
-        $stats = $slaService->getStatistics($companyId);
+        $stats = $slaService->getStatistics($companyId, $year);
 
         return [
             Stat::make('Overall Grade', $stats['overall_grade'])
@@ -28,7 +32,7 @@ class SlaPerformanceOverview extends BaseWidget
                 ->icon('heroicon-o-star')
                 ->chart([65, 70, 75, 80, 85, 82, 88]),
 
-            Stat::make('On-time Rate', $stats['on_time_rate'] . '%')
+            Stat::make('On-time Rate', $stats['on_time_rate'].'%')
                 ->description('Orders completed on time')
                 ->color($stats['on_time_rate'] >= 70 ? 'success' : 'warning')
                 ->icon('heroicon-o-clock')
@@ -39,7 +43,7 @@ class SlaPerformanceOverview extends BaseWidget
                 ->icon('heroicon-o-shopping-cart')
                 ->color('info'),
 
-            Stat::make('Avg Completion', $stats['avg_percentage'] . '%')
+            Stat::make('Avg Completion', $stats['avg_percentage'].'%')
                 ->description('Of standard time')
                 ->color($stats['avg_percentage'] <= 100 ? 'success' : 'danger')
                 ->icon('heroicon-o-chart-bar')
@@ -49,7 +53,7 @@ class SlaPerformanceOverview extends BaseWidget
 
     protected function getGradeColor(string $grade): string
     {
-        return match($grade) {
+        return match ($grade) {
             'S' => 'success',
             'A' => 'primary',
             'B' => 'info',

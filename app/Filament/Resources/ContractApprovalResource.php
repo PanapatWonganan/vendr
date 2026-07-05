@@ -3,23 +3,25 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ContractApprovalResource\Pages;
-use App\Filament\Resources\ContractApprovalResource\RelationManagers;
 use App\Models\ContractApproval;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ContractApprovalResource extends Resource
 {
+    use \App\Filament\Resources\Concerns\HasYearFilter;
+
     protected static ?string $model = ContractApproval::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-document-check';
+
     protected static ?string $navigationLabel = 'Contract Approvals';
+
     protected static ?string $navigationGroup = 'Contract Management';
+
     protected static ?int $navigationSort = 1;
 
     public static function canAccess(): bool
@@ -141,7 +143,8 @@ class ContractApprovalResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                // กรองตามปีของสัญญา (วันที่สัญญา) ไม่ใช่วันที่สร้างในระบบ
+                static::yearFilter('contract_date'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

@@ -4,12 +4,17 @@ namespace App\Filament\Widgets;
 
 use App\Models\TermsOfReference;
 use Filament\Widgets\ChartWidget;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Illuminate\Support\Facades\DB;
 
 class TorDepartmentChart extends ChartWidget
 {
+    use InteractsWithPageFilters;
+
     protected static ?string $heading = 'TOR ตามแผนก';
+
     protected static ?string $pollingInterval = '60s';
+
     protected static ?int $sort = 4;
 
     public static function canView(): bool
@@ -23,10 +28,12 @@ class TorDepartmentChart extends ChartWidget
     protected function getData(): array
     {
         $companyId = session('company_id');
+        $year = $this->filters['year'] ?? (int) date('Y');
 
         $results = TermsOfReference::query()
             ->join('departments', 'terms_of_references.department_id', '=', 'departments.id')
             ->when($companyId, fn ($q) => $q->where('terms_of_references.company_id', $companyId))
+            ->when($year, fn ($q) => $q->whereRaw('YEAR(COALESCE(terms_of_references.submitted_at, terms_of_references.created_at)) = ?', [$year]))
             ->whereNull('terms_of_references.deleted_at')
             ->select(
                 'departments.name as department_name',

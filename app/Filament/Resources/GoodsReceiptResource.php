@@ -17,6 +17,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class GoodsReceiptResource extends Resource
 {
+    use \App\Filament\Resources\Concerns\HasYearFilter;
+
     protected static ?string $model = GoodsReceipt::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-check';
@@ -462,6 +464,9 @@ class GoodsReceiptResource extends Resource
                             ->when($data['from'], fn (Builder $query, $date): Builder => $query->whereDate('receipt_date', '>=', $date))
                             ->when($data['until'], fn (Builder $query, $date): Builder => $query->whereDate('receipt_date', '<=', $date));
                     }),
+
+                // กรองตามปีของเอกสาร (วันที่รับของ) ไม่ใช่วันที่สร้างในระบบ
+                static::yearFilter('receipt_date'),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make()

@@ -3,7 +3,6 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\TermsOfReferenceResource\Pages;
-use App\Models\PurchaseRequisition;
 use App\Models\TermsOfReference;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -17,12 +16,20 @@ use Illuminate\Support\Facades\Auth;
 
 class TermsOfReferenceResource extends Resource
 {
+    use \App\Filament\Resources\Concerns\HasYearFilter;
+
     protected static ?string $model = TermsOfReference::class;
+
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
+
     protected static ?string $navigationLabel = 'TOR Management';
+
     protected static ?string $navigationGroup = 'Procurement Management';
+
     protected static ?int $navigationSort = 1;
+
     protected static ?string $modelLabel = 'TOR';
+
     protected static ?string $pluralModelLabel = 'Terms of References';
 
     public static function canAccess(): bool
@@ -37,6 +44,7 @@ class TermsOfReferenceResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         $companyId = session('company_id');
+
         return parent::getEloquentQuery()
             ->when($companyId, fn ($query) => $query->where('company_id', $companyId));
     }
@@ -45,7 +53,9 @@ class TermsOfReferenceResource extends Resource
     {
         $companyId = session('company_id');
         $user = Auth::user();
-        if (!$user) return null;
+        if (! $user) {
+            return null;
+        }
 
         $count = TermsOfReference::query()
             ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
@@ -97,6 +107,7 @@ class TermsOfReferenceResource extends Resource
                                         if (session('company_id') == 2) {
                                             return ['law_based' => 'แบบฟอร์มเชิงพาณิชย์'];
                                         }
+
                                         return TermsOfReference::getFormCategoryOptions();
                                     })
                                     ->default(fn () => session('company_id') == 2 ? 'law_based' : null)
@@ -203,7 +214,7 @@ class TermsOfReferenceResource extends Resource
                                 ->columnSpanFull()
                                 ->collapsible()
                                 ->addActionLabel('เพิ่มเกณฑ์ประเมิน')
-                                ->itemLabel(fn (array $state): ?string => ($state['name'] ?? '') . ' (' . ($state['weight'] ?? 0) . '%)'),
+                                ->itemLabel(fn (array $state): ?string => ($state['name'] ?? '').' ('.($state['weight'] ?? 0).'%)'),
 
                             Forms\Components\RichEditor::make('payment_terms')
                                 ->label('เงื่อนไขการจ่ายเงิน')
@@ -384,8 +395,8 @@ class TermsOfReferenceResource extends Resource
                             // relationship or a dedicated attachments relation manager instead.
                         ]),
                 ])
-                ->columnSpanFull()
-                ->skippable(),
+                    ->columnSpanFull()
+                    ->skippable(),
             ]);
     }
 
@@ -481,6 +492,9 @@ class TermsOfReferenceResource extends Resource
                 Tables\Filters\SelectFilter::make('priority')
                     ->label('ลำดับสำคัญ')
                     ->options(TermsOfReference::getPriorityOptions()),
+
+                // กรองตามปีของเอกสาร (วันที่ส่งพิจารณา) ไม่ใช่วันที่สร้างในระบบ
+                static::yearFilter('submitted_at'),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),

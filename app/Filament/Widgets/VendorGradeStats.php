@@ -3,11 +3,14 @@
 namespace App\Filament\Widgets;
 
 use App\Models\VendorScore;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class VendorGradeStats extends BaseWidget
 {
+    use InteractsWithPageFilters;
+
     protected static ?int $sort = 2;
 
     public static function canView(): bool
@@ -18,8 +21,8 @@ class VendorGradeStats extends BaseWidget
     protected function getStats(): array
     {
         $companyId = session('company_id') ?: 2; // Default to company ID 2 for testing
-        
-        if (!$companyId) {
+
+        if (! $companyId) {
             return [
                 Stat::make('ผู้ขายที่ประเมิน', '0'),
                 Stat::make('เกรด A', '0%'),
@@ -28,9 +31,12 @@ class VendorGradeStats extends BaseWidget
             ];
         }
 
-        // Get latest scores for each vendor
+        $year = $this->filters['year'] ?? (int) date('Y');
+
+        // Get latest scores for each vendor (กรองตามปีประเมินจากคอลัมน์ year โดยตรง)
         $scores = VendorScore::where('company_id', $companyId)
             ->whereNotNull('weighted_grade')
+            ->when($year, fn ($q) => $q->where('year', $year))
             ->get()
             ->groupBy('vendor_id')
             ->map(function ($vendorScores) {
@@ -38,12 +44,12 @@ class VendorGradeStats extends BaseWidget
             });
 
         $totalVendors = $scores->count();
-        
+
         if ($totalVendors === 0) {
             return [
                 Stat::make('ผู้ขายที่ประเมิน', '0'),
                 Stat::make('เกรด A', '0%'),
-                Stat::make('เกรด B', '0%'), 
+                Stat::make('เกรด B', '0%'),
                 Stat::make('ต้องปรับปรุง', '0%'),
             ];
         }
@@ -61,19 +67,19 @@ class VendorGradeStats extends BaseWidget
                 ->description('จำนวนผู้ขายที่มีการประเมิน')
                 ->descriptionIcon('heroicon-m-building-office-2')
                 ->color('primary'),
-                
-            Stat::make('เกรด A', $percentA . '%')
-                ->description($gradeA . ' ราย - ดีมาก')
+
+            Stat::make('เกรด A', $percentA.'%')
+                ->description($gradeA.' ราย - ดีมาก')
                 ->descriptionIcon('heroicon-m-trophy')
                 ->color('success'),
-                
-            Stat::make('เกรด B', $percentB . '%') 
-                ->description($gradeB . ' ราย - ดี')
+
+            Stat::make('เกรด B', $percentB.'%')
+                ->description($gradeB.' ราย - ดี')
                 ->descriptionIcon('heroicon-m-star')
                 ->color('info'),
-                
-            Stat::make('ต้องปรับปรุง', $percentCD . '%')
-                ->description($gradeCandD . ' ราย - เกรด C,D')
+
+            Stat::make('ต้องปรับปรุง', $percentCD.'%')
+                ->description($gradeCandD.' ราย - เกรด C,D')
                 ->descriptionIcon('heroicon-m-exclamation-triangle')
                 ->color('danger'),
         ];

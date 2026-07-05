@@ -2,10 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseRequisition;
 use App\Models\SlaTracking;
 use App\Models\TermsOfReference;
-use App\Models\PurchaseRequisition;
-use App\Models\PurchaseOrder;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 
@@ -64,7 +64,7 @@ class SlaService
      */
     public function calculateGrade(float $percentage): string
     {
-        return match(true) {
+        return match (true) {
             $percentage <= 50 => 'S',
             $percentage <= 70 => 'A',
             $percentage <= 90 => 'B',
@@ -79,7 +79,7 @@ class SlaService
      */
     public function trackPrSubmissionToApproval(PurchaseRequisition $pr): ?SlaTracking
     {
-        if (!$pr->submitted_at || !$pr->pr_approved_at) {
+        if (! $pr->submitted_at || ! $pr->pr_approved_at) {
             return null;
         }
 
@@ -118,7 +118,7 @@ class SlaService
      */
     public function trackTorSubmissionToApproval(TermsOfReference $tor): ?SlaTracking
     {
-        if (!$tor->submitted_at || !$tor->approved_at) {
+        if (! $tor->submitted_at || ! $tor->approved_at) {
             return null;
         }
 
@@ -157,7 +157,7 @@ class SlaService
      */
     public function trackPoCreationToApproval(PurchaseOrder $po): ?SlaTracking
     {
-        if (!$po->po_created_at || !$po->po_approved_at) {
+        if (! $po->po_created_at || ! $po->po_approved_at) {
             return null;
         }
 
@@ -200,7 +200,7 @@ class SlaService
     {
         $pr = $po->purchaseRequisition;
 
-        if (!$pr || !$pr->submitted_at || !$po->po_approved_at) {
+        if (! $pr || ! $pr->submitted_at || ! $po->po_approved_at) {
             return null;
         }
 
@@ -238,12 +238,17 @@ class SlaService
     /**
      * Get SLA statistics for dashboard
      */
-    public function getStatistics(?int $companyId = null): array
+    public function getStatistics(?int $companyId = null, ?int $year = null): array
     {
         $query = SlaTracking::query();
 
         if ($companyId) {
             $query->where('company_id', $companyId);
+        }
+
+        if ($year) {
+            // กรองตามปีของช่วง SLA จริง (start_date) ไม่ใช่วันที่สร้าง record
+            $query->whereRaw('YEAR(COALESCE(start_date, created_at)) = ?', [$year]);
         }
 
         $totalOrders = $query->count();

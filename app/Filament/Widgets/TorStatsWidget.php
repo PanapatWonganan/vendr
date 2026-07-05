@@ -3,25 +3,28 @@
 namespace App\Filament\Widgets;
 
 use App\Models\TermsOfReference;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
 class TorStatsWidget extends BaseWidget
 {
+    use InteractsWithPageFilters;
+
     protected static ?string $pollingInterval = '60s';
+
     protected static ?int $sort = 2;
 
     protected function getStats(): array
     {
         $companyId = session('company_id');
+        $year = $this->filters['year'] ?? (int) date('Y');
 
         $query = TermsOfReference::query()
-            ->when($companyId, fn ($q) => $q->where('company_id', $companyId));
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+            ->when($year, fn ($q) => $q->whereRaw('YEAR(COALESCE(submitted_at, created_at)) = ?', [$year]));
 
-        $thisMonth = (clone $query)->whereMonth('created_at', now()->month)
-            ->whereYear('created_at', now()->year);
-
-        $totalThisMonth = (clone $thisMonth)->count();
+        $totalThisYear = (clone $query)->count();
         $pending = (clone $query)->whereIn('status', ['submitted', 'reviewing'])->count();
         $approvedNoPr = (clone $query)->where('status', 'approved')
             ->whereDoesntHave('purchaseRequisitions')
@@ -30,8 +33,8 @@ class TorStatsWidget extends BaseWidget
             ->sum('budget_estimate');
 
         return [
-            Stat::make('TOR เดือนนี้', $totalThisMonth)
-                ->description('จำนวน TOR ที่สร้างเดือนนี้')
+            Stat::make('TOR ปีนี้', $totalThisYear)
+                ->description('จำนวน TOR ที่สร้างในปี '.$year)
                 ->descriptionIcon('heroicon-m-document-text')
                 ->color('primary'),
 
@@ -45,7 +48,7 @@ class TorStatsWidget extends BaseWidget
                 ->descriptionIcon('heroicon-m-check-circle')
                 ->color($approvedNoPr > 0 ? 'info' : 'gray'),
 
-            Stat::make('มูลค่า TOR อนุมัติ', number_format($approvedBudget, 0) . ' ฿')
+            Stat::make('มูลค่า TOR อนุมัติ', number_format($approvedBudget, 0).' ฿')
                 ->description('มูลค่ารวม TOR ที่อนุมัติ')
                 ->descriptionIcon('heroicon-m-banknotes')
                 ->color('success'),

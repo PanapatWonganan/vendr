@@ -2,14 +2,18 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\PurchaseRequisition;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseRequisition;
 use Filament\Widgets\ChartWidget;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Illuminate\Support\Facades\Auth;
 
 class PendingApprovalsChart extends ChartWidget
 {
+    use InteractsWithPageFilters;
+
     protected static ?string $heading = 'Pending Approvals Overview';
+
     protected static ?int $sort = 3;
 
     public static function canView(): bool
@@ -21,8 +25,9 @@ class PendingApprovalsChart extends ChartWidget
     {
         $user = Auth::user();
         $companyId = session('company_id');
-        
-        if (!$companyId) {
+        $year = $this->filters['year'] ?? (int) date('Y');
+
+        if (! $companyId) {
             return [
                 'datasets' => [
                     [
@@ -35,25 +40,27 @@ class PendingApprovalsChart extends ChartWidget
             ];
         }
 
-        // Get pending PRs that current user can approve
+        // Get pending PRs that current user can approve (กรองด้วยปีของเอกสาร ไม่ใช่ created_at)
         $pendingPRsQuery = PurchaseRequisition::where('company_id', $companyId)
-            ->where('status', 'pending_approval');
-            
-        if (!$user->hasRole('admin') && !$user->hasRole('procurement_manager')) {
+            ->where('status', 'pending_approval')
+            ->when($year, fn ($q) => $q->whereRaw('YEAR(COALESCE(request_date, created_at)) = ?', [$year]));
+
+        if (! $user->hasRole('admin') && ! $user->hasRole('procurement_manager')) {
             if ($user->hasRole('department_head') && $user->department_id) {
                 $pendingPRsQuery->where('department_id', $user->department_id);
             } else {
                 $pendingPRsQuery->where('pr_approver_id', $user->id);
             }
         }
-        
+
         $pendingPRs = $pendingPRsQuery->count();
 
-        // Get pending POs that current user can approve
+        // Get pending POs that current user can approve (กรองด้วยปีของเอกสาร ไม่ใช่ created_at)
         $pendingPOsQuery = PurchaseOrder::where('company_id', $companyId)
-            ->where('status', 'pending_approval');
-            
-        if (!$user->hasRole('admin') && !$user->hasRole('procurement_manager')) {
+            ->where('status', 'pending_approval')
+            ->when($year, fn ($q) => $q->whereRaw('YEAR(COALESCE(order_date, created_at)) = ?', [$year]));
+
+        if (! $user->hasRole('admin') && ! $user->hasRole('procurement_manager')) {
             if ($user->hasRole('department_head') && $user->department_id) {
                 $pendingPOsQuery->where('department_id', $user->department_id);
             } else {
@@ -61,16 +68,18 @@ class PendingApprovalsChart extends ChartWidget
                 // $pendingPOsQuery->where('po_approver_id', $user->id);
             }
         }
-        
+
         $pendingPOs = $pendingPOsQuery->count();
 
         // Get all pending items (for managers/admin)
         $allPendingPRs = PurchaseRequisition::where('company_id', $companyId)
             ->where('status', 'pending_approval')
+            ->when($year, fn ($q) => $q->whereRaw('YEAR(COALESCE(request_date, created_at)) = ?', [$year]))
             ->count();
-            
+
         $allPendingPOs = PurchaseOrder::where('company_id', $companyId)
             ->where('status', 'pending_approval')
+            ->when($year, fn ($q) => $q->whereRaw('YEAR(COALESCE(order_date, created_at)) = ?', [$year]))
             ->count();
 
         return [

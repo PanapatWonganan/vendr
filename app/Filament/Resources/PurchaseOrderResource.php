@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\Auth;
 
 class PurchaseOrderResource extends Resource
 {
+    use \App\Filament\Resources\Concerns\HasYearFilter;
+
     protected static ?string $model = PurchaseOrder::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-shopping-cart';
@@ -748,6 +750,9 @@ class PurchaseOrderResource extends Resource
                             });
                     })
                     ->visible(fn () => auth()->user()->hasAnyRole(['admin', 'procurement_manager', 'department_head'])),
+
+                // กรองตามปีของเอกสาร (วันที่สั่งซื้อ) ไม่ใช่วันที่สร้างในระบบ
+                static::yearFilter('order_date'),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),

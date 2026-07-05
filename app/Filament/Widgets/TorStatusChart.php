@@ -4,11 +4,16 @@ namespace App\Filament\Widgets;
 
 use App\Models\TermsOfReference;
 use Filament\Widgets\ChartWidget;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 
 class TorStatusChart extends ChartWidget
 {
+    use InteractsWithPageFilters;
+
     protected static ?string $heading = 'TOR ตามสถานะ';
+
     protected static ?string $pollingInterval = '60s';
+
     protected static ?int $sort = 3;
 
     public static function canView(): bool
@@ -22,9 +27,11 @@ class TorStatusChart extends ChartWidget
     protected function getData(): array
     {
         $companyId = session('company_id');
+        $year = $this->filters['year'] ?? (int) date('Y');
 
         $query = TermsOfReference::query()
-            ->when($companyId, fn ($q) => $q->where('company_id', $companyId));
+            ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
+            ->when($year, fn ($q) => $q->whereRaw('YEAR(COALESCE(submitted_at, created_at)) = ?', [$year]));
 
         $statuses = [
             'draft' => ['label' => 'ร่าง', 'color' => 'rgb(156, 163, 175)'],
@@ -44,7 +51,7 @@ class TorStatusChart extends ChartWidget
             $count = (clone $query)->where('status', $status)->count();
             if ($count > 0) {
                 $data[] = $count;
-                $labels[] = $info['label'] . " ({$count})";
+                $labels[] = $info['label']." ({$count})";
                 $colors[] = $info['color'];
             }
         }

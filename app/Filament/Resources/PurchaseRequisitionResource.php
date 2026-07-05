@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Builder;
 
 class PurchaseRequisitionResource extends Resource
 {
+    use \App\Filament\Resources\Concerns\HasYearFilter;
+
     protected static ?string $model = PurchaseRequisition::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
@@ -587,6 +589,9 @@ class PurchaseRequisitionResource extends Resource
 
                 Tables\Filters\SelectFilter::make('department')
                     ->relationship('department', 'name'),
+
+                // กรองตามปีของเอกสาร (วันที่ขอซื้อ) ไม่ใช่วันที่สร้างในระบบ
+                static::yearFilter('request_date'),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),

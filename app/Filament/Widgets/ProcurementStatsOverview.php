@@ -35,27 +35,35 @@ class ProcurementStatsOverview extends BaseWidget
 
         // ข้อ 19: filter ตามปีที่เลือกบน Dashboard
         $year = $this->filters['year'] ?? (int) date('Y');
-        $scope = function ($q) use ($companyId, $year) {
+
+        // กรองตาม "ปีของเอกสารจริง" (business date) ไม่ใช่ created_at (วันที่ import)
+        $prScope = function ($q) use ($companyId, $year) {
             return $q
                 ->when($companyId, fn ($qq) => $qq->where('company_id', $companyId))
-                ->when($year, fn ($qq) => $qq->whereYear('created_at', $year));
+                ->when($year, fn ($qq) => $qq->whereRaw('YEAR(COALESCE(request_date, created_at)) = ?', [$year]));
+        };
+        $poScope = function ($q) use ($companyId, $year) {
+            return $q
+                ->when($companyId, fn ($qq) => $qq->where('company_id', $companyId))
+                ->when($year, fn ($qq) => $qq->whereRaw('YEAR(COALESCE(order_date, created_at)) = ?', [$year]));
         };
 
         // Purchase Requisitions Stats
-        $totalPRs = PurchaseRequisition::tap($scope)->count();
-        $pendingPRs = PurchaseRequisition::tap($scope)->where('status', 'pending_approval')->count();
-        $approvedPRs = PurchaseRequisition::tap($scope)->where('status', 'approved')->count();
+        $totalPRs = PurchaseRequisition::tap($prScope)->count();
+        $pendingPRs = PurchaseRequisition::tap($prScope)->where('status', 'pending_approval')->count();
+        $approvedPRs = PurchaseRequisition::tap($prScope)->where('status', 'approved')->count();
 
         // Purchase Orders Stats
-        $totalPOs = PurchaseOrder::tap($scope)->count();
-        $pendingPOs = PurchaseOrder::tap($scope)->where('status', 'pending_approval')->count();
-        $approvedPOs = PurchaseOrder::tap($scope)->where('status', 'approved')->count();
+        $totalPOs = PurchaseOrder::tap($poScope)->count();
+        $pendingPOs = PurchaseOrder::tap($poScope)->where('status', 'pending_approval')->count();
+        $approvedPOs = PurchaseOrder::tap($poScope)->where('status', 'approved')->count();
 
         // Total Values (within selected year)
-        $totalPOValue = PurchaseOrder::tap($scope)->sum('total_amount');
+        $totalPOValue = PurchaseOrder::tap($poScope)->sum('total_amount');
 
-        $thisMonthPOValue = PurchaseOrder::tap($scope)
-            ->whereMonth('created_at', now()->month)
+        // มูลค่า PO ของเดือนปัจจุบัน (อ้างอิง order_date เช่นเดียวกับตัวกรองปี)
+        $thisMonthPOValue = PurchaseOrder::tap($poScope)
+            ->whereRaw('MONTH(COALESCE(order_date, created_at)) = ?', [now()->month])
             ->sum('total_amount');
 
         // Vendors count
