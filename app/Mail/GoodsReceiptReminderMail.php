@@ -5,7 +5,6 @@ namespace App\Mail;
 use App\Models\GoodsReceipt;
 use App\Models\User;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
@@ -16,7 +15,9 @@ class GoodsReceiptReminderMail extends Mailable
     use Queueable, SerializesModels;
 
     public GoodsReceipt $goodsReceipt;
+
     public User $creator;
+
     public int $daysUntilDelivery;
 
     /**
@@ -53,7 +54,7 @@ class GoodsReceiptReminderMail extends Mailable
                 'creator' => $this->creator,
                 'daysUntilDelivery' => $this->daysUntilDelivery,
                 'purchaseOrder' => $this->goodsReceipt->purchaseOrder,
-                'supplier' => $this->goodsReceipt->supplier,
+                'supplier' => $this->goodsReceipt->vendor,
                 'inspectionCommittee' => $this->goodsReceipt->inspectionCommittee,
                 'expectedDeliveryDate' => $this->goodsReceipt->purchaseOrder?->expected_delivery_date,
             ]

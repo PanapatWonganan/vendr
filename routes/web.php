@@ -46,13 +46,30 @@ Route::middleware(['auth', CompanyMiddleware::class])->group(function () {
     // Knowledge Base routes
     Route::get('/admin/knowledge-articles/{article}/view', function (App\Models\KnowledgeArticle $article) {
         $article->incrementViews();
+
         return view('knowledge-article-view', compact('article'));
     })->name('knowledge.view');
 
     Route::post('/admin/knowledge-articles/{article}/increment-views', function (App\Models\KnowledgeArticle $article) {
         $article->incrementViews();
+
         return response()->json(['success' => true]);
     })->name('knowledge.increment-views');
+
+    // Legacy named routes still referenced by resources/views/layouts/app.blade.php
+    // (sidebar ของหน้า /profile) — ถ้าไม่มีชื่อ route พวกนี้ หน้า profile จะ 500
+    Route::get('/purchase-requisitions', fn () => redirect(\App\Filament\Resources\PurchaseRequisitionResource::getUrl()))
+        ->name('purchase-requisitions.index');
+    Route::get('/purchase-requisitions/my-requests', fn () => redirect(\App\Filament\Resources\PurchaseRequisitionResource::getUrl('my-requests')))
+        ->name('purchase-requisitions.my-requests');
+    Route::get('/purchase-requisitions/pending-approvals', fn () => redirect(\App\Filament\Resources\PurchaseRequisitionResource::getUrl('pending-approvals')))
+        ->name('purchase-requisitions.pending-approvals');
+    Route::get('/purchase-orders', fn () => redirect(\App\Filament\Resources\PurchaseOrderResource::getUrl()))
+        ->name('purchase-orders.index');
+    Route::get('/purchase-orders/pending-approvals', fn () => redirect(\App\Filament\Resources\PurchaseOrderResource::getUrl('pending-approvals')))
+        ->name('purchase-orders.pending-approvals');
+    Route::get('/value-analysis', fn () => redirect(\App\Filament\Resources\ValueAnalysisResource::getUrl()))
+        ->name('value-analysis.index');
 });
 
 // Telegram Bot Webhook (token validated in controller)
@@ -63,7 +80,9 @@ Route::post('/telegram/webhook/{token}', [\App\Http\Controllers\TelegramWebhookC
 
 // Telegram polling command for local dev (no webhook needed)
 Route::get('/telegram/polling', function () {
-    if (app()->environment('production')) abort(404);
+    if (app()->environment('production')) {
+        abort(404);
+    }
 
     $bot = app(\App\Services\TelegramBotService::class);
     $offset = 0;
@@ -72,11 +91,11 @@ Route::get('/telegram/polling', function () {
 
     while ($rounds < $maxRounds) {
         $response = \Illuminate\Support\Facades\Http::get(
-            "https://api.telegram.org/bot" . config('telegram.bot_token') . "/getUpdates",
+            'https://api.telegram.org/bot'.config('telegram.bot_token').'/getUpdates',
             ['offset' => $offset, 'timeout' => 30]
         )->json();
 
-        if (!empty($response['result'])) {
+        if (! empty($response['result'])) {
             foreach ($response['result'] as $update) {
                 $bot->handleUpdate($update);
                 $offset = $update['update_id'] + 1;
@@ -85,7 +104,7 @@ Route::get('/telegram/polling', function () {
         $rounds++;
     }
 
-    return 'Polling ended after ' . $maxRounds . ' rounds';
+    return 'Polling ended after '.$maxRounds.' rounds';
 })->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class]);
 
 require __DIR__.'/auth.php';

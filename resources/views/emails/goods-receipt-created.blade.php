@@ -160,10 +160,10 @@
                 </div>
                 @endif
                 
-                @if($goodsReceipt->supplier)
+                @if($goodsReceipt->vendor)
                 <div class="detail-row">
                     <span class="detail-label">ผู้ขาย:</span>
-                    <span class="detail-value">{{ $goodsReceipt->supplier->name }}</span>
+                    <span class="detail-value">{{ $goodsReceipt->vendor->company_name }}</span>
                 </div>
                 @endif
                 

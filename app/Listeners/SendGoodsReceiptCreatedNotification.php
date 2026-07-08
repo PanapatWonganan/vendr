@@ -8,7 +8,6 @@ use App\Models\GoodsReceipt;
 use App\Models\User;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 
 class SendGoodsReceiptCreatedNotification implements ShouldQueue
@@ -22,17 +21,17 @@ class SendGoodsReceiptCreatedNotification implements ShouldQueue
     {
         // Set the database connection for this listener
         config(['database.default' => $event->connectionName]);
-        
+
         // Switch to the company's database context
         session(['company_id' => $event->companyId]);
-        
+
         try {
             // Get the goods receipt and creator
-            $goodsReceipt = GoodsReceipt::with(['purchaseOrder', 'supplier', 'inspectionCommittee'])
+            $goodsReceipt = GoodsReceipt::with(['purchaseOrder', 'vendor', 'inspectionCommittee'])
                 ->find($event->goodsReceiptId);
             $creator = User::find($event->creatorId);
 
-            if (!$goodsReceipt || !$creator) {
+            if (! $goodsReceipt || ! $creator) {
                 return;
             }
 
@@ -58,11 +57,11 @@ class SendGoodsReceiptCreatedNotification implements ShouldQueue
 
             // Update committee_notified_at timestamp
             $goodsReceipt->update([
-                'committee_notified_at' => now()
+                'committee_notified_at' => now(),
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Failed to send goods receipt created notification: ' . $e->getMessage(), [
+            \Log::error('Failed to send goods receipt created notification: '.$e->getMessage(), [
                 'goods_receipt_id' => $event->goodsReceiptId,
                 'creator_id' => $event->creatorId,
                 'company_id' => $event->companyId,
