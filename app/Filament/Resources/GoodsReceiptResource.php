@@ -47,7 +47,16 @@ class GoodsReceiptResource extends Resource
                         Forms\Components\Select::make('purchase_order_id')
                             ->label('เลือกใบสั่งซื้อ (PO)')
                             ->relationship('purchaseOrder', 'po_number', function ($query) {
-                                return $query->where('status', 'approved');
+                                // ตรวจรับได้กับ PO ที่ผ่านการอนุมัติแล้วทุกสถานะ (รวมที่กำลัง/รับของครบ และปิดงานแล้ว)
+                                // เดิมกรองแค่ 'approved' ทำให้เลือก PO ไม่ได้ เพราะ PO ที่ส่งของแล้วจะเลื่อนสถานะไปจาก approved
+                                return $query->whereIn('status', [
+                                    'approved',
+                                    'sent_to_supplier',
+                                    'acknowledged',
+                                    'partially_received',
+                                    'fully_received',
+                                    'closed',
+                                ]);
                             })
                             ->searchable()
                             ->preload()
@@ -118,7 +127,30 @@ class GoodsReceiptResource extends Resource
                             ->placeholder('เลือก PO ก่อน แล้วเลือกงวด (ถ้ามี)')
                             // ข้อ 8: ไม่บังคับเลือกงวด — กรณี PO ไม่มีงวดการจ่ายในระบบ
                             // ผู้ใช้สามารถระบุ "งวดที่" และ "เปอร์เซ็นต์" ด้านล่างได้เอง
-                            ->helperText('แสดงเฉพาะงวดที่ยังไม่ได้ตรวจรับ — หาก PO นี้ยังไม่มีงวดในระบบ ให้ระบุงวดที่/เปอร์เซ็นต์ด้านล่างเอง'),
+                            // helperText ปรับตามสถานะจริง เพื่อไม่ให้ผู้ใช้งงว่าทำไมเลือกงวดไม่ได้
+                            ->helperText(function (Forms\Get $get): string {
+                                $poId = $get('purchase_order_id');
+                                if (! $poId) {
+                                    return 'เลือกใบสั่งซื้อ (PO) ก่อน จึงจะแสดงงวดการส่งมอบ';
+                                }
+
+                                $connection = session('company_connection', 'mysql');
+                                $totalMilestones = PaymentMilestone::on($connection)
+                                    ->where('purchase_order_id', $poId)->count();
+                                $freeMilestones = PaymentMilestone::on($connection)
+                                    ->where('purchase_order_id', $poId)
+                                    ->whereDoesntHave('goodsReceipt')->count();
+
+                                if ($totalMilestones === 0) {
+                                    return 'PO นี้ไม่มีงวดการจ่ายในระบบ — ไม่ต้องเลือกงวด ให้ระบุ "งวดที่" และ "เปอร์เซ็นต์" ด้านล่างเองได้';
+                                }
+
+                                if ($freeMilestones === 0) {
+                                    return 'ทุกงวดของ PO นี้ถูกตรวจรับครบแล้ว — หากต้องการตรวจรับเพิ่ม ให้ระบุ "งวดที่" และ "เปอร์เซ็นต์" ด้านล่างเอง';
+                                }
+
+                                return 'แสดงเฉพาะงวดที่ยังไม่ได้ตรวจรับ — หาก PO นี้ยังไม่มีงวดในระบบ ให้ระบุงวดที่/เปอร์เซ็นต์ด้านล่างเอง';
+                            }),
 
                         Forms\Components\Hidden::make('vendor_id')
                             ->dehydrated(true),
