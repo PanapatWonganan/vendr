@@ -32,30 +32,31 @@ class SendGoodsReceiptReminders extends Command
     {
         $reminderDays = (int) $this->option('days');
         $reminderDate = Carbon::now()->addDays($reminderDays)->format('Y-m-d');
-        
+
         $this->info("กำลังตรวจสอบ GR ที่ครบกำหนดในอีก {$reminderDays} วัน ({$reminderDate})...");
 
         // หา GR ที่ยังไม่เสร็จและใกล้ครบกำหนดแล้ว
         $goodsReceipts = GoodsReceipt::with([
-            'inspectionCommittee', 
-            'createdBy', 
-            'purchaseOrder', 
-            'supplier'
+            'inspectionCommittee',
+            'createdBy',
+            'purchaseOrder',
+            'vendor',
         ])
-        ->whereHas('purchaseOrder', function ($query) use ($reminderDate) {
-            $query->whereDate('expected_delivery_date', $reminderDate);
-        })
-        ->whereIn('status', ['draft', 'pending'])
-        ->whereIn('inspection_status', ['pending'])
-        ->where(function ($query) {
-            // ยังไม่ได้ส่งการแจ้งเตือนวันนี้
-            $query->whereNull('reminder_sent_at')
-                  ->orWhere('reminder_sent_at', '<', Carbon::now()->startOfDay());
-        })
-        ->get();
+            ->whereHas('purchaseOrder', function ($query) use ($reminderDate) {
+                $query->whereDate('expected_delivery_date', $reminderDate);
+            })
+            ->whereIn('status', ['draft', 'pending'])
+            ->whereIn('inspection_status', ['pending'])
+            ->where(function ($query) {
+                // ยังไม่ได้ส่งการแจ้งเตือนวันนี้
+                $query->whereNull('reminder_sent_at')
+                    ->orWhere('reminder_sent_at', '<', Carbon::now()->startOfDay());
+            })
+            ->get();
 
         if ($goodsReceipts->isEmpty()) {
             $this->info('ไม่พบ GR ที่ต้องส่งการแจ้งเตือน');
+
             return 0;
         }
 
@@ -66,13 +67,15 @@ class SendGoodsReceiptReminders extends Command
 
         foreach ($goodsReceipts as $gr) {
             try {
-                if (!$gr->inspectionCommittee || !$gr->inspectionCommittee->email) {
+                if (! $gr->inspectionCommittee || ! $gr->inspectionCommittee->email) {
                     $this->warn("GR {$gr->gr_number}: ไม่มีคณะกรรมการตรวจสอบหรืออีเมล");
+
                     continue;
                 }
 
-                if (!$gr->createdBy) {
+                if (! $gr->createdBy) {
                     $this->warn("GR {$gr->gr_number}: ไม่พบข้อมูลผู้สร้าง");
+
                     continue;
                 }
 
@@ -84,24 +87,24 @@ class SendGoodsReceiptReminders extends Command
                 $gr->update(['reminder_sent_at' => Carbon::now()]);
 
                 $this->info("✅ GR {$gr->gr_number}: ส่งการแจ้งเตือนแล้ว ({$gr->inspectionCommittee->email})");
-                
-                Log::info("GR reminder sent", [
+
+                Log::info('GR reminder sent', [
                     'gr_id' => $gr->id,
                     'gr_number' => $gr->gr_number,
                     'recipient' => $gr->inspectionCommittee->email,
                     'days_until_delivery' => $reminderDays,
-                    'expected_delivery_date' => $gr->purchaseOrder->expected_delivery_date
+                    'expected_delivery_date' => $gr->purchaseOrder->expected_delivery_date,
                 ]);
 
                 $successCount++;
-                
+
             } catch (\Exception $e) {
-                $this->error("❌ GR {$gr->gr_number}: เกิดข้อผิดพลาด - " . $e->getMessage());
-                
-                Log::error("Failed to send GR reminder", [
+                $this->error("❌ GR {$gr->gr_number}: เกิดข้อผิดพลาด - ".$e->getMessage());
+
+                Log::error('Failed to send GR reminder', [
                     'gr_id' => $gr->id,
                     'gr_number' => $gr->gr_number,
-                    'error' => $e->getMessage()
+                    'error' => $e->getMessage(),
                 ]);
 
                 $errorCount++;
