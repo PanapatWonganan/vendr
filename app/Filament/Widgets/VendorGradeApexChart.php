@@ -198,7 +198,8 @@ class VendorGradeApexChart extends ApexChartWidget
                     donut: {
                         labels: {
                             total: {
-                                formatter: (w) => w.globals.seriesTotals.reduce((a, b) => a + b, 0) + ' ราย',
+                                formatter: (w) => ((w && w.globals && w.globals.seriesTotals) || [])
+                                    .reduce((a, b) => a + b, 0) + ' ราย',
                             },
                         },
                     },
@@ -207,7 +208,11 @@ class VendorGradeApexChart extends ApexChartWidget
             tooltip: {
                 y: {
                     formatter: (val, opts) => {
-                        const total = opts.w.globals.seriesTotals.reduce((a, b) => a + b, 0);
+                        const totals = opts && opts.w && opts.w.globals ? opts.w.globals.seriesTotals : null;
+                        if (!totals) {
+                            return val + ' ราย';
+                        }
+                        const total = totals.reduce((a, b) => a + b, 0);
                         const percent = total > 0 ? Math.round((val / total) * 100) : 0;
                         return val + ' ราย (' + percent + '%)';
                     },
@@ -215,7 +220,8 @@ class VendorGradeApexChart extends ApexChartWidget
             },
             dataLabels: {
                 formatter: (val, opts) => {
-                    const count = opts.w.config.series[opts.seriesIndex];
+                    const series = opts && opts.w && opts.w.config ? opts.w.config.series : null;
+                    const count = series ? series[opts.seriesIndex] : val;
                     return count > 0 ? Math.round(val) + '%' : '';
                 },
             },
