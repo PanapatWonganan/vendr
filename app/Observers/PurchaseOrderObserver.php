@@ -20,7 +20,7 @@ class PurchaseOrderObserver
     public function created(PurchaseOrder $po): void
     {
         // Set PO created timestamp
-        if (!$po->po_created_at) {
+        if (! $po->po_created_at) {
             $po->po_created_at = now();
             $po->saveQuietly(); // Save without triggering events
         }
@@ -59,9 +59,12 @@ class PurchaseOrderObserver
                 // Track Full Cycle: PR Created → PO Approved
                 if ($po->purchaseRequisition) {
                     $this->slaService->trackFullCycle($po);
+
+                    // Track รับเรื่อง → PO Approved (สูตร Excel, วันปฏิทิน)
+                    $this->slaService->trackReceivedToPoApproval($po);
                 }
             } catch (\Exception $e) {
-                \Log::error('SLA Tracking Error (PO Approval): ' . $e->getMessage());
+                \Log::error('SLA Tracking Error (PO Approval): '.$e->getMessage());
             }
         }
     }

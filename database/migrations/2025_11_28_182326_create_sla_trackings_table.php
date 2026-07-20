@@ -20,11 +20,14 @@ return new class extends Migration
             $table->unsignedBigInteger('purchase_order_id')->nullable();
 
             // Tracking Stage
+            // NOTE: ค่า enum ชุดเต็มอยู่ที่ 2026_07_20_100000 (ALTER สำหรับ DB ที่รันไปแล้ว)
             $table->enum('stage', [
-                'pr_submission_to_approval',  // Stage 1: PR Submitted → PR Approved
-                'pr_approval_to_po_creation', // Stage 2: PR Approved → PO Created
-                'po_creation_to_approval',    // Stage 3: PO Created → PO Approved
-                'full_cycle'                  // Full: PR Created → PO Approved
+                'pr_submission_to_approval',   // Stage 1: PR Submitted → PR Approved
+                'pr_approval_to_po_creation',  // Stage 2: PR Approved → PO Created
+                'po_creation_to_approval',     // Stage 3: PO Created → PO Approved
+                'full_cycle',                  // Full: PR Created → PO Approved
+                'tor_submission_to_approval',  // TOR Submitted → TOR Approved
+                'received_to_po_approval',     // รับเรื่อง → PO Approved (สูตร Excel ผู้ใช้)
             ]);
 
             // Procurement Method & SLA Standard
@@ -37,7 +40,7 @@ return new class extends Migration
             $table->integer('actual_working_days')->nullable(); // วันทำการจริงที่ใช้
 
             // SLA Calculation
-            $table->decimal('sla_percentage', 5, 2)->nullable(); // actual/standard * 100
+            $table->decimal('sla_percentage', 8, 2)->nullable(); // actual/standard * 100
             $table->enum('sla_grade', ['S', 'A', 'B', 'C', 'D', 'F'])->nullable();
             $table->integer('days_difference')->nullable(); // บวก = ช้า, ลบ = เร็ว
             $table->enum('status', ['on_time', 'late', 'in_progress'])->default('in_progress');

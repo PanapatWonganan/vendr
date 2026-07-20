@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PurchaseRequisition extends Model
 {
@@ -15,10 +14,15 @@ class PurchaseRequisition extends Model
 
     // Status constants
     const STATUS_DRAFT = 'draft';
+
     const STATUS_PENDING_APPROVAL = 'pending_approval';
+
     const STATUS_APPROVED = 'approved';
+
     const STATUS_REJECTED = 'rejected';
+
     const STATUS_COMPLETED = 'completed';
+
     const STATUS_CANCELLED = 'cancelled';
 
     const STATUSES = [
@@ -92,6 +96,7 @@ class PurchaseRequisition extends Model
         'completion_notes',
         // SLA tracking fields
         'submitted_at',
+        'received_date',
         'pr_approved_at',
         // TOR reference
         'tor_id',
@@ -111,6 +116,7 @@ class PurchaseRequisition extends Model
         'approval_request_date' => 'date',
         'completion_date' => 'datetime',
         'submitted_at' => 'datetime',
+        'received_date' => 'date',
         'pr_approved_at' => 'datetime',
     ];
 
@@ -180,6 +186,7 @@ class PurchaseRequisition extends Model
     public function getCategoryLabelAttribute(): string
     {
         $options = self::getCategoryOptions();
+
         return $options[$this->category] ?? $this->category;
     }
 
@@ -200,6 +207,7 @@ class PurchaseRequisition extends Model
     public function getFormCategoryLabelAttribute(): string
     {
         $options = self::getFormCategoryOptions();
+
         return $options[$this->form_category] ?? $this->form_category;
     }
 
@@ -215,6 +223,7 @@ class PurchaseRequisition extends Model
     public function getWorkTypeLabelAttribute()
     {
         $options = self::getWorkTypeOptions();
+
         return $options[$this->work_type] ?? $this->work_type;
     }
 
@@ -233,6 +242,7 @@ class PurchaseRequisition extends Model
     public function getProcurementMethodLabelAttribute()
     {
         $options = self::getProcurementMethodOptions();
+
         return $options[$this->procurement_method] ?? $this->procurement_method;
     }
 
@@ -283,7 +293,6 @@ class PurchaseRequisition extends Model
     {
         return $this->belongsTo(User::class, 'other_stakeholder_id');
     }
-
 
     /**
      * Get the vendor for direct purchase PR.
@@ -391,7 +400,7 @@ class PurchaseRequisition extends Model
         $month = date('m');
         $companyId = session('company_id');
 
-        if (!$companyId) {
+        if (! $companyId) {
             throw new \RuntimeException('Cannot generate PR number without company context.');
         }
 
@@ -409,7 +418,7 @@ class PurchaseRequisition extends Model
                 $newNumber = 1;
             }
 
-            return $prefix . $year . $month . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+            return $prefix.$year.$month.str_pad($newNumber, 4, '0', STR_PAD_LEFT);
         });
     }
-} 
+}

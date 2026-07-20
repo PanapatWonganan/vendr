@@ -161,6 +161,12 @@ class PurchaseRequisitionResource extends Resource
                                 ->required()
                                 ->minDate(now()->addDay())
                                 ->helperText('When do you need this?'),
+
+                            Forms\Components\DatePicker::make('received_date')
+                                ->label('วันที่รับเรื่อง')
+                                ->displayFormat('d/m/Y')
+                                ->helperText('วันที่ฝ่ายจัดซื้อรับเรื่อง — จุดเริ่มนับ SLA (ถ้าเว้นว่างจะใช้วันที่ส่งเรื่อง)')
+                                ->visibleOn(['edit', 'view']),
                         ]),
                     ]),
 

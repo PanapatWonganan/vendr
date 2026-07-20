@@ -2,14 +2,15 @@
 
 namespace App\Console\Commands;
 
-use App\Models\PurchaseRequisition;
 use App\Models\PurchaseOrder;
+use App\Models\PurchaseRequisition;
 use App\Services\SlaService;
 use Illuminate\Console\Command;
 
 class BackfillSlaData extends Command
 {
     protected $signature = 'sla:backfill';
+
     protected $description = 'Backfill SLA data for existing approved PRs and POs';
 
     public function handle(SlaService $slaService): int
@@ -106,6 +107,27 @@ class BackfillSlaData extends Command
 
         $this->info("Created SLA tracking for {$poSlaCount} POs");
         $this->info("Created full cycle SLA tracking for {$fullCycleCount} orders");
+
+        // ========================
+        // Step 5: รับเรื่อง → PO Approved (สูตร Excel, วันปฏิทิน)
+        // ครอบคลุมทุกสถานะหลังอนุมัติ (รวม PO ที่ import มาเป็น closed)
+        // ========================
+        $this->info('Calculating received→PO-approved SLA...');
+
+        $receivedCount = 0;
+        PurchaseOrder::whereNotIn('status', ['draft', 'pending_approval', 'rejected', 'cancelled'])
+            ->whereNotNull('purchase_requisition_id')
+            ->where(fn ($q) => $q->whereNotNull('po_approved_at')->orWhereNotNull('approved_at'))
+            ->with('purchaseRequisition')
+            ->chunkById(100, function ($pos) use ($slaService, &$receivedCount) {
+                foreach ($pos as $po) {
+                    if ($slaService->trackReceivedToPoApproval($po)) {
+                        $receivedCount++;
+                    }
+                }
+            });
+
+        $this->info("Created received→PO-approved SLA tracking for {$receivedCount} orders");
 
         // ========================
         // Summary

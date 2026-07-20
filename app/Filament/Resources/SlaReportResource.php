@@ -13,9 +13,13 @@ use Illuminate\Database\Eloquent\Builder;
 class SlaReportResource extends Resource
 {
     protected static ?string $model = SlaTracking::class;
+
     protected static ?string $navigationIcon = 'heroicon-o-chart-bar-square';
+
     protected static ?string $navigationLabel = 'SLA Reports';
+
     protected static ?string $navigationGroup = 'Reports & Analytics';
+
     protected static ?int $navigationSort = 10;
 
     public static function canAccess(): bool
@@ -26,7 +30,8 @@ class SlaReportResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         $companyId = session('company_id');
-        return parent::getEloquentQuery()->when($companyId, fn($query) => $query->where('company_id', $companyId));
+
+        return parent::getEloquentQuery()->when($companyId, fn ($query) => $query->where('company_id', $companyId));
     }
 
     public static function form(Form $form): Form
@@ -50,13 +55,13 @@ class SlaReportResource extends Resource
 
                 Tables\Columns\TextColumn::make('stage')
                     ->label('Stage')
-                    ->formatStateUsing(fn($record) => $record->getStageName())
+                    ->formatStateUsing(fn ($record) => $record->getStageName())
                     ->badge()
                     ->color('info'),
 
                 Tables\Columns\TextColumn::make('procurement_method')
                     ->label('Method')
-                    ->formatStateUsing(fn($state) => match($state) {
+                    ->formatStateUsing(fn ($state) => match ($state) {
                         'agreement_price' => 'ตกลงราคา',
                         'invitation_bid' => 'ประมูลเชิญ',
                         'open_bid' => 'ประกาศทั่วไป',
@@ -79,17 +84,33 @@ class SlaReportResource extends Resource
                     ->label('Performance')
                     ->suffix('%')
                     ->alignCenter()
-                    ->color(fn($record) => $record->sla_percentage <= 100 ? 'success' : 'danger'),
+                    ->color(fn ($record) => $record->sla_percentage <= 100 ? 'success' : 'danger'),
+
+                Tables\Columns\TextColumn::make('percent_diff')
+                    ->label('%Dif')
+                    ->state(fn ($record) => $record->getPercentDiff())
+                    ->suffix('%')
+                    ->alignCenter()
+                    ->color(fn ($record) => $record->getPercentDiff() >= 0 ? 'success' : 'danger')
+                    ->tooltip('100% − (วันที่ใช้จริง/SLA) — ยิ่งสูงยิ่งดี'),
+
+                Tables\Columns\TextColumn::make('saving_percentage')
+                    ->label('%Saving')
+                    ->suffix('%')
+                    ->alignCenter()
+                    ->placeholder('—')
+                    ->color(fn ($state) => $state > 0 ? 'success' : 'gray')
+                    ->tooltip('(วงเงินก่อน VAT − ราคาที่ต่อได้) / วงเงินก่อน VAT'),
 
                 Tables\Columns\BadgeColumn::make('sla_grade')
                     ->label('Grade')
-                    ->formatStateUsing(fn($record) => $record->sla_grade . ' - ' . $record->getGradeLabel())
-                    ->color(fn($record) => $record->getGradeColor()),
+                    ->formatStateUsing(fn ($record) => $record->sla_grade.' - '.$record->getGradeLabel())
+                    ->color(fn ($record) => $record->getGradeColor()),
 
                 Tables\Columns\TextColumn::make('days_difference')
                     ->label('Diff')
-                    ->formatStateUsing(fn($state) => ($state > 0 ? '+' : '') . $state . ' days')
-                    ->color(fn($state) => $state <= 0 ? 'success' : 'danger'),
+                    ->formatStateUsing(fn ($state) => ($state > 0 ? '+' : '').$state.' days')
+                    ->color(fn ($state) => $state <= 0 ? 'success' : 'danger'),
 
                 Tables\Columns\BadgeColumn::make('status')
                     ->label('Status')
@@ -126,6 +147,8 @@ class SlaReportResource extends Resource
                         'pr_submission_to_approval' => 'PR Submission → Approval',
                         'po_creation_to_approval' => 'PO Creation → Approval',
                         'full_cycle' => 'Full Cycle',
+                        'received_to_po_approval' => 'รับเรื่อง → PO Approved',
+                        'tor_submission_to_approval' => 'TOR Submission → Approval',
                     ]),
 
                 Tables\Filters\SelectFilter::make('procurement_method')

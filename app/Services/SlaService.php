@@ -52,6 +52,18 @@ class SlaService
     }
 
     /**
+     * Calculate calendar days between two dates (DATEDIF-style, ตามสูตร Excel ของผู้ใช้)
+     */
+    public function calculateCalendarDays(Carbon $startDate, Carbon $endDate): int
+    {
+        if ($startDate->greaterThan($endDate)) {
+            return 0;
+        }
+
+        return $startDate->startOfDay()->diffInDays($endDate->startOfDay());
+    }
+
+    /**
      * Get SLA standard days for procurement method
      */
     public function getSlaStandardDays(?string $procurementMethod): int
@@ -231,6 +243,69 @@ class SlaService
                 'sla_grade' => $grade,
                 'days_difference' => $daysDiff,
                 'status' => $status,
+            ]
+        );
+    }
+
+    /**
+     * Track รับเรื่อง → PO Approved (สูตร Excel ของผู้ใช้)
+     *
+     * - นับวันปฏิทิน (DATEDIF) ไม่หักวันหยุด ให้ตัวเลขตรงกับชีทที่ผู้ใช้คุ้น
+     * - จุดเริ่ม: received_date (วันที่รับเรื่อง) ถ้าไม่มีใช้ submitted_at
+     *   (ข้อมูล import เก็บวันที่รับเรื่องไว้ใน submitted_at)
+     * - เก็บ %saving จากการต่อรอง: วงเงิน PR ก่อน VAT เทียบ PO subtotal
+     */
+    public function trackReceivedToPoApproval(PurchaseOrder $po): ?SlaTracking
+    {
+        $pr = $po->purchaseRequisition;
+        $endDate = $po->po_approved_at ?? $po->approved_at;
+
+        if (! $pr || ! $endDate) {
+            return null;
+        }
+
+        $receivedDate = $pr->received_date ?? $pr->submitted_at;
+        if (! $receivedDate) {
+            return null;
+        }
+
+        $startDate = Carbon::parse($receivedDate);
+        $endDate = Carbon::parse($endDate);
+        $actualDays = $this->calculateCalendarDays($startDate, $endDate);
+        $standardDays = $this->getSlaStandardDays($po->procurement_method ?? $pr->procurement_method);
+
+        $percentage = $standardDays > 0 ? ($actualDays / $standardDays) * 100 : 0;
+        $grade = $this->calculateGrade($percentage);
+        $daysDiff = $actualDays - $standardDays;
+        $status = $daysDiff <= 0 ? 'on_time' : 'late';
+
+        // %saving: วงเงินก่อน VAT (PR) - ราคาที่ต่อได้ (PO subtotal ก่อน VAT)
+        $budgetAmount = (float) ($pr->total_amount ?: $pr->procurement_budget ?: 0);
+        $finalAmount = (float) ($po->subtotal ?: $po->total_amount ?: 0);
+        $savingAmount = $budgetAmount > 0 ? $budgetAmount - $finalAmount : null;
+        $savingPercentage = $budgetAmount > 0 ? ($savingAmount / $budgetAmount) * 100 : null;
+
+        return SlaTracking::updateOrCreate(
+            [
+                'purchase_order_id' => $po->id,
+                'stage' => 'received_to_po_approval',
+            ],
+            [
+                'company_id' => $po->company_id,
+                'purchase_requisition_id' => $pr->id,
+                'procurement_method' => $po->procurement_method ?? $pr->procurement_method,
+                'sla_standard_days' => $standardDays,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'actual_working_days' => $actualDays,
+                'sla_percentage' => round($percentage, 2),
+                'sla_grade' => $grade,
+                'days_difference' => $daysDiff,
+                'status' => $status,
+                'budget_amount' => $budgetAmount ?: null,
+                'final_amount' => $finalAmount ?: null,
+                'saving_amount' => $savingAmount !== null ? round($savingAmount, 2) : null,
+                'saving_percentage' => $savingPercentage !== null ? round($savingPercentage, 2) : null,
             ]
         );
     }

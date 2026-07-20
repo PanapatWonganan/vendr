@@ -23,12 +23,20 @@ class SlaTracking extends Model
         'days_difference',
         'status',
         'remarks',
+        'budget_amount',
+        'final_amount',
+        'saving_amount',
+        'saving_percentage',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
         'sla_percentage' => 'decimal:2',
+        'budget_amount' => 'decimal:2',
+        'final_amount' => 'decimal:2',
+        'saving_amount' => 'decimal:2',
+        'saving_percentage' => 'decimal:2',
     ];
 
     // Relationships
@@ -55,7 +63,7 @@ class SlaTracking extends Model
     // Helper Methods
     public function getGradeColor(): string
     {
-        return match($this->sla_grade) {
+        return match ($this->sla_grade) {
             'S' => 'success',
             'A' => 'primary',
             'B' => 'info',
@@ -68,7 +76,7 @@ class SlaTracking extends Model
 
     public function getGradeLabel(): string
     {
-        return match($this->sla_grade) {
+        return match ($this->sla_grade) {
             'S' => 'Excellent',
             'A' => 'Very Good',
             'B' => 'Good',
@@ -81,13 +89,26 @@ class SlaTracking extends Model
 
     public function getStageName(): string
     {
-        return match($this->stage) {
+        return match ($this->stage) {
             'pr_submission_to_approval' => 'PR Submission → Approval',
             'pr_approval_to_po_creation' => 'PR Approval → PO Creation',
             'po_creation_to_approval' => 'PO Creation → Approval',
             'full_cycle' => 'Full Cycle (PR → PO Approved)',
             'tor_submission_to_approval' => 'TOR Submission → Approval',
+            'received_to_po_approval' => 'รับเรื่อง → PO Approved',
             default => $this->stage,
         };
+    }
+
+    /**
+     * %Dif ตามสูตร Excel: 100% - (actual/SLA) — ยิ่งสูงยิ่งดี
+     */
+    public function getPercentDiff(): ?float
+    {
+        if ($this->sla_percentage === null) {
+            return null;
+        }
+
+        return round(100 - (float) $this->sla_percentage, 2);
     }
 }
