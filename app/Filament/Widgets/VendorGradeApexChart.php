@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Models\VendorScore;
+use Filament\Support\RawJs;
 use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
 
@@ -84,7 +85,6 @@ class VendorGradeApexChart extends ApexChartWidget
                                     'fontSize' => '16px',
                                     'fontWeight' => '600',
                                     'color' => '#374151',
-                                    'formatter' => 'function (w) { return "0 ราย" }',
                                 ],
                                 'value' => [
                                     'fontSize' => '24px',
@@ -104,7 +104,6 @@ class VendorGradeApexChart extends ApexChartWidget
                 ],
                 'dataLabels' => [
                     'enabled' => true,
-                    'formatter' => 'function(val, opts) { return "0%" }',
                 ],
             ];
         }
@@ -117,7 +116,6 @@ class VendorGradeApexChart extends ApexChartWidget
             'D' => $scores->where('weighted_grade', 'D')->count(),
         ];
 
-        $totalVendors = $scores->count();
         $seriesData = array_values($gradeCounts);
 
         return [
@@ -145,13 +143,11 @@ class VendorGradeApexChart extends ApexChartWidget
                                 'fontSize' => '16px',
                                 'fontWeight' => '600',
                                 'color' => '#374151',
-                                'formatter' => "function (w) { return '{$totalVendors} ราย' }",
                             ],
                             'value' => [
                                 'fontSize' => '24px',
                                 'fontWeight' => '700',
                                 'color' => '#111827',
-                                'formatter' => 'function (val) { return val }',
                             ],
                             'name' => [
                                 'fontSize' => '14px',
@@ -163,20 +159,9 @@ class VendorGradeApexChart extends ApexChartWidget
             ],
             'tooltip' => [
                 'enabled' => true,
-                'y' => [
-                    'formatter' => "function(val, opts) { 
-                        var percent = Math.round((val / {$totalVendors}) * 100);
-                        return val + ' ราย (' + percent + '%)';
-                    }",
-                ],
             ],
             'dataLabels' => [
                 'enabled' => true,
-                'formatter' => "function(val, opts) { 
-                    var count = opts.w.config.series[opts.seriesIndex];
-                    var percent = Math.round(val);
-                    return count > 0 ? percent + '%' : '';
-                }",
                 'style' => [
                     'fontSize' => '14px',
                     'fontWeight' => '600',
@@ -197,5 +182,44 @@ class VendorGradeApexChart extends ApexChartWidget
                 ],
             ],
         ];
+    }
+
+    /**
+     * JS formatters ต้องส่งผ่าน RawJs เท่านั้น — ใส่เป็น string ใน getOptions()
+     * จะถูก JSON.parse เป็น string ธรรมดา ทำให้ ApexCharts โยน TypeError
+     * แล้ววาด slice ไม่ครบ (บั๊กกราฟโชว์สีเดียว 2026-07-20)
+     */
+    protected function extraJsOptions(): ?RawJs
+    {
+        return RawJs::make(<<<'JS'
+        {
+            plotOptions: {
+                pie: {
+                    donut: {
+                        labels: {
+                            total: {
+                                formatter: (w) => w.globals.seriesTotals.reduce((a, b) => a + b, 0) + ' ราย',
+                            },
+                        },
+                    },
+                },
+            },
+            tooltip: {
+                y: {
+                    formatter: (val, opts) => {
+                        const total = opts.w.globals.seriesTotals.reduce((a, b) => a + b, 0);
+                        const percent = total > 0 ? Math.round((val / total) * 100) : 0;
+                        return val + ' ราย (' + percent + '%)';
+                    },
+                },
+            },
+            dataLabels: {
+                formatter: (val, opts) => {
+                    const count = opts.w.config.series[opts.seriesIndex];
+                    return count > 0 ? Math.round(val) + '%' : '';
+                },
+            },
+        }
+        JS);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Models\ValueAnalysis;
+use Filament\Support\RawJs;
 use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Leandrocfe\FilamentApexCharts\Widgets\ApexChartWidget;
 
@@ -90,7 +91,6 @@ class ValueAnalysisSavingsChart extends ApexChartWidget
                             'fontWeight' => '700',
                             'color' => '#065f46',
                             'offsetY' => 10,
-                            'formatter' => 'function(val) { return Math.round(val) + "%" }',
                         ],
                         'total' => [
                             'show' => true,
@@ -120,10 +120,7 @@ class ValueAnalysisSavingsChart extends ApexChartWidget
                 ],
             ],
             'tooltip' => [
-                'enabled' => true,
-                'formatter' => 'function(val) {
-                    return "ประหยัด: " + Math.round(val) + "%"
-                }',
+                'enabled' => false,
             ],
             'responsive' => [
                 [
@@ -169,7 +166,6 @@ class ValueAnalysisSavingsChart extends ApexChartWidget
                             'show' => true,
                             'fontSize' => '24px',
                             'color' => '#9ca3af',
-                            'formatter' => 'function(val) { return "0%" }',
                         ],
                         'total' => [
                             'show' => true,
@@ -190,5 +186,26 @@ class ValueAnalysisSavingsChart extends ApexChartWidget
                 ],
             ],
         ];
+    }
+
+    /**
+     * JS formatters ต้องส่งผ่าน RawJs — ห้ามใส่เป็น string ใน getOptions()
+     * (JSON.parse ทำให้เป็น string ธรรมดา → ApexCharts โยน TypeError ตอน render)
+     */
+    protected function extraJsOptions(): ?RawJs
+    {
+        return RawJs::make(<<<'JS'
+        {
+            plotOptions: {
+                radialBar: {
+                    dataLabels: {
+                        value: {
+                            formatter: (val) => Math.round(val) + '%',
+                        },
+                    },
+                },
+            },
+        }
+        JS);
     }
 }
