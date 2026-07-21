@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\Auth;
 
 #[ObservedBy(GoodsReceiptObserver::class)]
@@ -28,6 +27,7 @@ class GoodsReceipt extends BaseModel
         'delivery_milestone',
         'milestone_description',
         'milestone_percentage',
+        'milestone_amount',
         'inspection_status',
         'inspection_notes',
         'delivery_note_number',
@@ -47,7 +47,7 @@ class GoodsReceipt extends BaseModel
         'reminder_sent_at',
         'reviewed_by',
         'reviewed_at',
-        'created_by'
+        'created_by',
     ];
 
     protected $casts = [
@@ -57,20 +57,29 @@ class GoodsReceipt extends BaseModel
         'reviewed_at' => 'datetime',
         'quality_checked_at' => 'datetime',
         'milestone_percentage' => 'decimal:2',
+        'milestone_amount' => 'decimal:2',
         'is_quality_checked' => 'boolean',
         'documents' => 'array',
     ];
 
     const STATUS_DRAFT = 'draft';
+
     const STATUS_PENDING_REVIEW = 'pending_review';
+
     const STATUS_COMPLETED = 'completed';
+
     const STATUS_RETURNED = 'returned';
+
     const STATUS_PARTIALLY_RETURNED = 'partially_returned';
+
     const STATUS_CANCELLED = 'cancelled';
 
     const INSPECTION_PENDING = 'pending';
+
     const INSPECTION_PASSED = 'passed';
+
     const INSPECTION_FAILED = 'failed';
+
     const INSPECTION_PARTIAL = 'partial';
 
     protected static function boot()
@@ -79,13 +88,13 @@ class GoodsReceipt extends BaseModel
 
         static::created(function ($goodsReceipt) {
             // Generate GR number if not already set
-            if (!$goodsReceipt->gr_number) {
+            if (! $goodsReceipt->gr_number) {
                 $goodsReceipt->gr_number = $goodsReceipt->generateReceiptNumber();
                 $goodsReceipt->saveQuietly();
             }
 
             // Set created_by if not already set
-            if (!$goodsReceipt->created_by && Auth::check()) {
+            if (! $goodsReceipt->created_by && Auth::check()) {
                 $goodsReceipt->created_by = Auth::id();
                 $goodsReceipt->saveQuietly();
             }
@@ -178,6 +187,49 @@ class GoodsReceipt extends BaseModel
         return $query->where('status', self::STATUS_COMPLETED);
     }
 
+    /**
+     * เปอร์เซ็นต์ที่ใช้แสดงผล/คำนวณจริง — ค่าที่ผู้ใช้กรอกเองใน GR มาก่อน
+     * (คอลัมน์ default = 0 หมายถึง "ยังไม่กรอก") ถ้าไม่ได้กรอกจึงใช้ % ของงวดการจ่ายที่ผูกไว้
+     */
+    public function getEffectivePercentageAttribute(): ?float
+    {
+        if ($this->milestone_percentage !== null && (float) $this->milestone_percentage > 0) {
+            return (float) $this->milestone_percentage;
+        }
+
+        $milestonePct = $this->paymentMilestone?->percentage;
+
+        return $milestonePct !== null ? (float) $milestonePct : null;
+    }
+
+    /**
+     * จำนวนเงินตรวจรับงวดนี้ที่ใช้แสดงผลจริง — ค่าที่ผู้ใช้กรอกเองมาก่อน
+     * ถ้าไม่ได้กรอก: % ที่กรอกเองต่างจากงวดในระบบ → มูลค่าสัญญา × % นั้น,
+     * ไม่งั้นใช้ amount ของงวดที่ผูกไว้ หรือมูลค่าสัญญา × effective_percentage
+     */
+    public function getEffectiveAmountAttribute(): ?float
+    {
+        if ($this->milestone_amount !== null && (float) $this->milestone_amount > 0) {
+            return (float) $this->milestone_amount;
+        }
+
+        $total = $this->purchaseOrder?->total_amount;
+        $pct = $this->effective_percentage;
+        $milestonePct = $this->paymentMilestone?->percentage;
+
+        if ($pct !== null && ($milestonePct === null || abs($pct - (float) $milestonePct) > 0.001)) {
+            return $total !== null ? round($total * $pct / 100, 2) : null;
+        }
+        if ($this->paymentMilestone?->amount !== null) {
+            return (float) $this->paymentMilestone->amount;
+        }
+        if ($pct !== null && $total !== null) {
+            return round($total * $pct / 100, 2);
+        }
+
+        return null;
+    }
+
     public function getStatusLabelAttribute()
     {
         return match ($this->status) {
@@ -233,7 +285,7 @@ class GoodsReceipt extends BaseModel
         $month = date('m');
         $companyId = $this->company_id ?? session('company_id');
 
-        if (!$companyId) {
+        if (! $companyId) {
             throw new \RuntimeException('Cannot generate GR number without company context.');
         }
 
@@ -251,7 +303,7 @@ class GoodsReceipt extends BaseModel
                 $newNumber = 1;
             }
 
-            return sprintf("%s%s%s%04d", $prefix, $year, $month, $newNumber);
+            return sprintf('%s%s%s%04d', $prefix, $year, $month, $newNumber);
         });
     }
 

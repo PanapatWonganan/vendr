@@ -66,6 +66,7 @@ class GoodsReceiptResource extends Resource
                                 $set('payment_milestone_id', null);
                                 $set('delivery_milestone', null);
                                 $set('milestone_percentage', null);
+                                $set('milestone_amount', null);
 
                                 if ($state) {
                                     $connection = session('company_connection', 'mysql');
@@ -197,7 +198,15 @@ class GoodsReceiptResource extends Resource
                             ->dehydrated(true)
                             ->suffix('%')
                             ->placeholder('เช่น 25')
-                            ->helperText('ระบุเองได้ หรือดึงจากงวดการส่งมอบอัตโนมัติ'),
+                            ->helperText('ระบุเองได้ — ค่าที่กรอกเองจะถูกใช้แสดงผล/คำนวณแทน % ของงวดในระบบ'),
+                        Forms\Components\TextInput::make('milestone_amount')
+                            ->label('จำนวนเงินตรวจรับงวดนี้')
+                            ->numeric()
+                            ->minValue(0)
+                            ->dehydrated(true)
+                            ->suffix('บาท')
+                            ->placeholder('เช่น 9000.00')
+                            ->helperText('ระบุเองได้ — ถ้าเว้นว่างระบบจะคำนวณจากมูลค่าสัญญา × เปอร์เซ็นต์'),
                         Forms\Components\Select::make('inspection_status')
                             ->label('สถานะตรวจสอบ')
                             ->required()
@@ -258,7 +267,8 @@ class GoodsReceiptResource extends Resource
                         Infolists\Components\TextEntry::make('delivery_milestone')
                             ->label('งวดที่')
                             ->formatStateUsing(function ($state, $record) {
-                                $num = $record->paymentMilestone->milestone_number ?? $state;
+                                // ค่าที่กรอกเองใน GR มาก่อนงวดในระบบ
+                                $num = $state ?: $record->paymentMilestone?->milestone_number;
 
                                 return $num ? "งวดที่ {$num}" : '-';
                             }),
@@ -276,24 +286,11 @@ class GoodsReceiptResource extends Resource
                             ->formatStateUsing(fn ($state) => $state !== null ? number_format($state, 2).' บาท' : '-'),
                         Infolists\Components\TextEntry::make('milestone_amount')
                             ->label('จำนวนเงินตรวจรับงวดนี้')
-                            ->state(function ($record) {
-                                // Prefer the linked milestone amount; otherwise derive
-                                // from contract value × milestone percentage.
-                                if ($record->paymentMilestone?->amount !== null) {
-                                    return $record->paymentMilestone->amount;
-                                }
-                                $pct = $record->paymentMilestone->percentage ?? $record->milestone_percentage;
-                                $total = $record->purchaseOrder?->total_amount;
-                                if ($pct !== null && $total !== null) {
-                                    return round($total * $pct / 100, 2);
-                                }
-
-                                return null;
-                            })
+                            ->state(fn ($record) => $record->effective_amount)
                             ->formatStateUsing(fn ($state) => $state !== null ? number_format($state, 2).' บาท' : '-'),
                         Infolists\Components\TextEntry::make('milestone_percentage')
                             ->label('เปอร์เซ็นต์')
-                            ->state(fn ($record) => $record->paymentMilestone->percentage ?? $record->milestone_percentage)
+                            ->state(fn ($record) => $record->effective_percentage)
                             ->formatStateUsing(fn ($state) => $state !== null ? number_format($state, 2).' %' : '-'),
                     ])->columns(3),
 
@@ -379,21 +376,20 @@ class GoodsReceiptResource extends Resource
                 Tables\Columns\TextColumn::make('paymentMilestone.milestone_title')
                     ->label('งวด')
                     ->formatStateUsing(function ($state, $record) {
+                        // ค่าที่กรอกเองใน GR มาก่อนงวดในระบบ
+                        $num = $record->delivery_milestone ?: $record->paymentMilestone?->milestone_number;
                         if ($record->paymentMilestone) {
-                            return "งวดที่ {$record->paymentMilestone->milestone_number} - {$state}";
+                            return "งวดที่ {$num} - {$state}";
                         }
 
-                        return $record->delivery_milestone ? "งวดที่ {$record->delivery_milestone}" : '-';
+                        return $num ? "งวดที่ {$num}" : '-';
                     })
                     ->badge()
                     ->color('info'),
-                Tables\Columns\TextColumn::make('paymentMilestone.percentage')
+                Tables\Columns\TextColumn::make('milestone_percentage')
                     ->label('%')
-                    ->formatStateUsing(function ($state, $record) {
-                        $pct = $state ?? $record->milestone_percentage;
-
-                        return $pct ? number_format($pct, 1).'%' : '-';
-                    })
+                    ->state(fn ($record) => $record->effective_percentage)
+                    ->formatStateUsing(fn ($state) => $state ? number_format($state, 1).'%' : '-')
                     ->alignCenter(),
                 Tables\Columns\BadgeColumn::make('inspection_status')
                     ->label('สถานะตรวจสอบ')
