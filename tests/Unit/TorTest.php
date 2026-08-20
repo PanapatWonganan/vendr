@@ -61,7 +61,7 @@ class TorTest extends TestCase
 
     public function test_tor_can_be_edited(): void
     {
-        $tor = new TermsOfReference();
+        $tor = new TermsOfReference;
 
         $tor->status = 'draft';
         $this->assertTrue($tor->canBeEdited());
@@ -78,7 +78,7 @@ class TorTest extends TestCase
 
     public function test_tor_can_be_submitted(): void
     {
-        $tor = new TermsOfReference();
+        $tor = new TermsOfReference;
         $tor->status = 'draft';
         $tor->title = 'Test TOR';
         $tor->scope_of_work = 'Test Scope';
@@ -94,7 +94,7 @@ class TorTest extends TestCase
 
     public function test_tor_can_be_approved(): void
     {
-        $tor = new TermsOfReference();
+        $tor = new TermsOfReference;
 
         $tor->status = 'submitted';
         $this->assertTrue($tor->canBeApproved());
@@ -111,7 +111,7 @@ class TorTest extends TestCase
 
     public function test_tor_is_revision(): void
     {
-        $tor = new TermsOfReference();
+        $tor = new TermsOfReference;
 
         $tor->parent_tor_id = null;
         $this->assertFalse($tor->isRevision());
@@ -122,7 +122,7 @@ class TorTest extends TestCase
 
     public function test_tor_revision_label(): void
     {
-        $tor = new TermsOfReference();
+        $tor = new TermsOfReference;
 
         $tor->revision_number = 0;
         $tor->parent_tor_id = null;
@@ -140,7 +140,7 @@ class TorTest extends TestCase
 
     public function test_tor_status_text_attribute(): void
     {
-        $tor = new TermsOfReference();
+        $tor = new TermsOfReference;
         $tor->status = 'draft';
         $this->assertEquals('ร่าง', $tor->status_text);
 
@@ -153,7 +153,7 @@ class TorTest extends TestCase
 
     public function test_tor_type_label_attribute(): void
     {
-        $tor = new TermsOfReference();
+        $tor = new TermsOfReference;
         $tor->tor_type = 'goods';
         $this->assertEquals('พัสดุ/วัสดุ', $tor->tor_type_label);
 
@@ -171,7 +171,7 @@ class TorTest extends TestCase
 
     public function test_convert_to_pr_data(): void
     {
-        $tor = new TermsOfReference();
+        $tor = new TermsOfReference;
         $tor->id = 1;
         $tor->title = 'Test TOR';
         $tor->department_id = 5;
@@ -213,13 +213,14 @@ class TorTest extends TestCase
             \App\Listeners\SendTorApprovedNotification::class,
             \App\Listeners\SendTorRejectedNotification::class,
             \App\Services\TorAiService::class,
-            \App\Services\TorPdfService::class,
+            \App\Services\TorDocumentService::class,
+            \App\Services\TorBuilderPdfService::class,
             \App\Mail\TorSubmittedMail::class,
             \App\Mail\TorApprovedMail::class,
             \App\Mail\TorRejectedMail::class,
-            \App\Livewire\TorAiDraft::class,
-            \App\Livewire\TorAiReview::class,
-            \App\Livewire\TorAiImprove::class,
+            \App\Filament\Pages\TorBuilder::class,
+            \App\Models\TorTemplate::class,
+            \App\Models\TorTemplateSection::class,
             \App\Filament\Widgets\TorStatsWidget::class,
             \App\Filament\Widgets\TorStatusChart::class,
             \App\Filament\Widgets\TorDepartmentChart::class,

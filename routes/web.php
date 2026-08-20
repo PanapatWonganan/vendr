@@ -43,6 +43,29 @@ Route::middleware(['auth', CompanyMiddleware::class])->group(function () {
     Route::get('/pr-attachments/{attachment}/download', [PurchaseRequisitionController::class, 'downloadAttachment'])
         ->name('pr-attachments.download');
 
+    // TOR document builder preview (renders document_sections JSON)
+    Route::get('/tor-builder/{tor}/preview', function (App\Models\TermsOfReference $tor) {
+        abort_unless($tor->company_id === (int) session('company_id'), 403);
+        abort_if(empty($tor->document_sections), 404, 'TOR นี้ยังไม่มีข้อมูลเอกสาร');
+
+        $sections = app(App\Services\TorDocumentService::class)->visibleSections($tor->document_sections);
+
+        return view('tor.document-preview', compact('tor', 'sections'));
+    })->name('tor-builder.preview');
+
+    // TOR document builder PDF (header + เลขหน้า ทุกหน้า ผ่าน mPDF)
+    Route::get('/tor-builder/{tor}/pdf', function (App\Models\TermsOfReference $tor) {
+        abort_unless($tor->company_id === (int) session('company_id'), 403);
+        abort_if(empty($tor->document_sections), 404, 'TOR นี้ยังไม่มีข้อมูลเอกสาร');
+
+        $service = app(App\Services\TorBuilderPdfService::class);
+
+        return response($service->generate($tor), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$service->filename($tor).'"',
+        ]);
+    })->name('tor-builder.pdf');
+
     // Knowledge Base routes
     Route::get('/admin/knowledge-articles/{article}/view', function (App\Models\KnowledgeArticle $article) {
         $article->incrementViews();

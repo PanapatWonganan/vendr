@@ -198,7 +198,7 @@
             </div>
 
             <div style="text-align: center;">
-                <a href="{{ config('app.url') }}/admin/terms-of-references/{{ $tor->id }}/edit" class="button">
+                <a href="{{ config('app.url') }}/admin/tor-builder?tor={{ $tor->id }}" class="button">
                     แก้ไข TOR
                 </a>
             </div>

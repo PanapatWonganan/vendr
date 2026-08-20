@@ -145,7 +145,7 @@ Always implement rule-based fallback when API key is missing or API fails.
 |---------|---------|
 | `SlaService` | Working day calculation, SLA grading (S-F), tracking per stage |
 | `TorAiService` | AI TOR draft generation, review, field improvement (OpenAI + fallback templates) |
-| `TorPdfService` | TOR PDF generation with Thai support (mPDF + freeserif font) |
+| `TorBuilderPdfService` | TOR document PDF (mPDF + freeserif, repeating header/page numbers) |
 | `PurchaseOrderPdfService` | SOW/PO PDF documents |
 | `DeliveryNotePdfService` | Delivery note PDFs |
 | `VendorRiskAssessmentService` | AI vendor risk assessment (DBD data + OpenAI + rule-based fallback) |
@@ -166,25 +166,24 @@ Always implement rule-based fallback when API key is missing or API fails.
 6. **Value Analysis:** draft → in_progress → completed → approved/rejected (revision chain via `parent_va_id`)
 7. **Vendor:** pending → approved/rejected/suspended
 
-## TOR Module (Terms of Reference)
+## TOR Module (Terms of Reference) — Document Builder (rebuilt 2026-08)
 
-Full implementation in Phase 1-9. Key components:
+The old 5-step wizard + AI Livewire components (`TorAiDraft/Review/Improve`) + `TorPdfService` were REMOVED. TOR is now a document builder mirroring the customer's paper form (see `docs/TOR_DOCUMENT_BUILDER_SCHEMA.md`):
 
-- **Models:** `TermsOfReference` (BaseModel), `TorItem`, `TorApprovalHistory`
-- **Filament Resource:** 5-step Wizard form (basics, scope, conditions, items/budget, committee/attachments)
-- **AI Assistant:** 3 Livewire components (`TorAiDraft`, `TorAiReview`, `TorAiImprove`) integrated into form and view page. Components dispatch Livewire events (`tor-apply-field`, `tor-apply-all`) which are received by `#[On]` listeners in `CreateTermsOfReference` and `EditTermsOfReference` pages to populate form fields.
-- **Events/Listeners:** `TorSubmitted`, `TorApproved`, `TorRejected` with Email (Mailable classes) + Telegram
-- **PDF Export:** Thai-language TOR document via mPDF
-- **Conversion:** `TermsOfReference::convertToPrData()` maps TOR fields to PR fields
-- **Revision chain:** via `parent_tor_id` (same pattern as ValueAnalysis `parent_va_id`)
+- **Models:** `TermsOfReference` (BaseModel; content lives in `document_sections` JSON), `TorTemplate` + `TorTemplateSection` (clause library, 6 procurement types, `{{party}}`/`{{company_*}}`/`{{penalty_*}}` placeholders resolved at creation), `TorApprovalHistory`
+- **Builder UI:** `app/Filament/Pages/TorBuilder` (`/admin/tor-builder`, edit via `?tor={id}`) — setup form + custom Blade editor (nested add/remove items, hide sections with renumber, timeline 1-of-3, payment options summing to 100%, copy old TOR, Submit button)
+- **Resource:** `TermsOfReferenceResource` is list-only; table actions: preview/PDF/edit(→builder)/submit/approve/reject/create_pr
+- **Services:** `TorDocumentService` (build/validate/renumber/flattenScope), `TorBuilderPdfService` (mPDF, header+page numbers repeat every page)
+- **Routes:** `/tor-builder/{tor}/preview` (HTML) and `/tor-builder/{tor}/pdf`
+- **Seeder:** `TorTemplateSeeder` (idempotent; clause text from customer Word templates)
+- **Events/Listeners:** `TorSubmitted`, `TorApproved`, `TorRejected` with Email (links point to builder/preview) + Telegram
+- **Conversion:** `convertToPrData()` + `convertItemsToPrItems()` — builder TORs derive payment_schedule from the payment section and a single lump-sum PR item from budget_estimate
+- **Revision chain:** via `parent_tor_id`
 
 ## Livewire Components
 
 | Component | Purpose |
 |-----------|---------|
-| `TorAiDraft` | Generate TOR draft from basic info via AI, fill form fields |
-| `TorAiReview` | AI review of saved TOR showing score/grade/issues |
-| `TorAiImprove` | AI improvement suggestions for individual TOR fields |
 | `ChatWidget` | Floating AI chat assistant with conversation history |
 | `NotificationBar` | Top-bar notification display |
 | `SearchableTable` | Reusable searchable/filterable table |

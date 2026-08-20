@@ -6,8 +6,6 @@ use App\Filament\Resources\TermsOfReferenceResource\Pages;
 use App\Models\TermsOfReference;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -70,334 +68,13 @@ class TermsOfReferenceResource extends Resource
         return 'warning';
     }
 
+    /**
+     * Create/Edit moved to the TOR Document Builder (app/Filament/Pages/TorBuilder).
+     * The old 5-step wizard was removed 2026-08-20.
+     */
     public static function form(Form $form): Form
     {
-        return $form
-            ->schema([
-                Forms\Components\Wizard::make([
-                    // ─── Step 1: Basic Information ────────────────
-                    Forms\Components\Wizard\Step::make('ข้อมูลพื้นฐาน')
-                        ->icon('heroicon-o-information-circle')
-                        ->schema([
-                            Forms\Components\Grid::make(2)->schema([
-                                Forms\Components\TextInput::make('title')
-                                    ->label('ชื่อ TOR / Title')
-                                    ->required()
-                                    ->maxLength(500)
-                                    ->placeholder('ระบุชื่อ TOR')
-                                    ->columnSpanFull(),
-
-                                Forms\Components\Select::make('department_id')
-                                    ->label('แผนก / Department')
-                                    ->relationship('department', 'name')
-                                    ->required()
-                                    ->searchable()
-                                    ->preload(),
-
-                                Forms\Components\Select::make('tor_type')
-                                    ->label('ประเภท TOR')
-                                    ->required()
-                                    ->options(TermsOfReference::getTorTypeOptions())
-                                    ->default('goods')
-                                    ->searchable(),
-
-                                Forms\Components\Select::make('form_category')
-                                    ->label('แบบฟอร์ม')
-                                    ->options(function () {
-                                        if (session('company_id') == 2) {
-                                            return ['law_based' => 'แบบฟอร์มเชิงพาณิชย์'];
-                                        }
-
-                                        return TermsOfReference::getFormCategoryOptions();
-                                    })
-                                    ->default(fn () => session('company_id') == 2 ? 'law_based' : null)
-                                    ->disabled(fn () => session('company_id') == 2)
-                                    ->dehydrated(true)
-                                    ->searchable(),
-
-                                Forms\Components\Select::make('work_type')
-                                    ->label('ประเภทงาน')
-                                    ->required()
-                                    ->options(TermsOfReference::getWorkTypeOptions())
-                                    ->searchable(),
-
-                                Forms\Components\Select::make('procurement_method')
-                                    ->label('วิธีจัดซื้อ')
-                                    ->options(TermsOfReference::getProcurementMethodOptions())
-                                    ->searchable(),
-
-                                Forms\Components\Select::make('category')
-                                    ->label('หมวดหมู่')
-                                    ->options(TermsOfReference::getCategoryOptions())
-                                    ->searchable(),
-
-                                Forms\Components\Select::make('priority')
-                                    ->label('ลำดับความสำคัญ')
-                                    ->required()
-                                    ->default('medium')
-                                    ->options(TermsOfReference::getPriorityOptions()),
-
-                                Forms\Components\TextInput::make('project_name')
-                                    ->label('ชื่อโครงการ')
-                                    ->maxLength(500)
-                                    ->placeholder('ชื่อโครงการ (ถ้ามี)'),
-
-                                Forms\Components\TextInput::make('project_code')
-                                    ->label('รหัสโครงการ')
-                                    ->maxLength(100)
-                                    ->placeholder('e.g., PRJ-2026-001'),
-                            ]),
-                        ]),
-
-                    // ─── Step 2: Scope of Work ───────────────────
-                    Forms\Components\Wizard\Step::make('ขอบเขตงาน')
-                        ->icon('heroicon-o-document-magnifying-glass')
-                        ->schema([
-                            Forms\Components\Livewire::make(\App\Livewire\TorAiDraft::class)
-                                ->columnSpanFull()
-                                ->lazy(),
-
-                            Forms\Components\RichEditor::make('background')
-                                ->label('ความเป็นมา / หลักการและเหตุผล')
-                                ->placeholder('อธิบายความเป็นมาและเหตุผลที่ต้องจัดซื้อจัดจ้าง...')
-                                ->columnSpanFull(),
-
-                            Forms\Components\RichEditor::make('objectives')
-                                ->label('วัตถุประสงค์')
-                                ->placeholder('ระบุวัตถุประสงค์ของการจัดซื้อจัดจ้าง...')
-                                ->columnSpanFull(),
-
-                            Forms\Components\RichEditor::make('scope_of_work')
-                                ->label('ขอบเขตของงาน')
-                                ->required()
-                                ->placeholder('ระบุขอบเขตของงานโดยละเอียด...')
-                                ->columnSpanFull(),
-
-                            Forms\Components\RichEditor::make('deliverables')
-                                ->label('ผลงานที่ต้องส่งมอบ')
-                                ->placeholder('ระบุผลงานที่ต้องส่งมอบ...')
-                                ->columnSpanFull(),
-
-                            Forms\Components\RichEditor::make('specifications')
-                                ->label('ข้อกำหนดทางเทคนิค')
-                                ->placeholder('ระบุข้อกำหนดทางเทคนิค (Specifications)...')
-                                ->columnSpanFull(),
-                        ]),
-
-                    // ─── Step 3: Conditions & Qualifications ─────
-                    Forms\Components\Wizard\Step::make('เงื่อนไขและคุณสมบัติ')
-                        ->icon('heroicon-o-clipboard-document-check')
-                        ->schema([
-                            Forms\Components\RichEditor::make('qualification_requirements')
-                                ->label('คุณสมบัติผู้เสนอราคา')
-                                ->placeholder('ระบุคุณสมบัติที่ผู้เสนอราคาต้องมี...')
-                                ->columnSpanFull(),
-
-                            Forms\Components\Repeater::make('evaluation_criteria')
-                                ->label('เกณฑ์ประเมิน')
-                                ->schema([
-                                    Forms\Components\Grid::make(3)->schema([
-                                        Forms\Components\TextInput::make('name')
-                                            ->label('ชื่อเกณฑ์')
-                                            ->required(),
-                                        Forms\Components\TextInput::make('weight')
-                                            ->label('น้ำหนัก (%)')
-                                            ->numeric()
-                                            ->required()
-                                            ->minValue(0)
-                                            ->maxValue(100)
-                                            ->suffix('%'),
-                                        Forms\Components\TextInput::make('description')
-                                            ->label('คำอธิบาย'),
-                                    ]),
-                                ])
-                                ->columnSpanFull()
-                                ->collapsible()
-                                ->addActionLabel('เพิ่มเกณฑ์ประเมิน')
-                                ->itemLabel(fn (array $state): ?string => ($state['name'] ?? '').' ('.($state['weight'] ?? 0).'%)'),
-
-                            Forms\Components\RichEditor::make('payment_terms')
-                                ->label('เงื่อนไขการจ่ายเงิน')
-                                ->placeholder('ระบุเงื่อนไขการจ่ายเงิน...')
-                                ->columnSpanFull(),
-
-                            Forms\Components\RichEditor::make('warranty_requirements')
-                                ->label('การรับประกัน')
-                                ->placeholder('ระบุเงื่อนไขการรับประกัน...')
-                                ->columnSpanFull(),
-
-                            Forms\Components\RichEditor::make('penalty_clause')
-                                ->label('เงื่อนไขเบี้ยปรับ')
-                                ->placeholder('ระบุเงื่อนไขเบี้ยปรับกรณีส่งมอบล่าช้า...')
-                                ->columnSpanFull(),
-                        ]),
-
-                    // ─── Step 4: Items & Budget ──────────────────
-                    Forms\Components\Wizard\Step::make('รายการและงบประมาณ')
-                        ->icon('heroicon-o-banknotes')
-                        ->schema([
-                            Forms\Components\Repeater::make('items')
-                                ->relationship()
-                                ->label('รายการ')
-                                ->schema([
-                                    Forms\Components\Grid::make(6)->schema([
-                                        Forms\Components\Hidden::make('item_number'),
-
-                                        Forms\Components\TextInput::make('description')
-                                            ->label('รายละเอียด')
-                                            ->required()
-                                            ->columnSpan(2),
-
-                                        Forms\Components\Textarea::make('specifications')
-                                            ->label('ข้อกำหนด')
-                                            ->rows(1)
-                                            ->columnSpan(2),
-
-                                        Forms\Components\TextInput::make('quantity')
-                                            ->label('จำนวน')
-                                            ->numeric()
-                                            ->required()
-                                            ->default(1)
-                                            ->live()
-                                            ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                                                $unitPrice = (float) $get('estimated_unit_price');
-                                                $quantity = (float) $state;
-                                                $set('estimated_total_price', $unitPrice * $quantity);
-                                            }),
-
-                                        Forms\Components\TextInput::make('unit_of_measure')
-                                            ->label('หน่วย')
-                                            ->placeholder('ชิ้น, ชุด, งาน'),
-
-                                        Forms\Components\TextInput::make('estimated_unit_price')
-                                            ->label('ราคาต่อหน่วย')
-                                            ->numeric()
-                                            ->prefix('฿')
-                                            ->step(0.01)
-                                            ->live()
-                                            ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                                                $unitPrice = (float) $state;
-                                                $quantity = (float) $get('quantity');
-                                                $set('estimated_total_price', $unitPrice * $quantity);
-                                            }),
-
-                                        Forms\Components\TextInput::make('estimated_total_price')
-                                            ->label('ราคารวม')
-                                            ->numeric()
-                                            ->prefix('฿')
-                                            ->disabled()
-                                            ->dehydrated(),
-
-                                        Forms\Components\TextInput::make('delivery_location')
-                                            ->label('สถานที่ส่งมอบ'),
-
-                                        Forms\Components\DatePicker::make('required_date')
-                                            ->label('ต้องการภายในวันที่'),
-
-                                        Forms\Components\Textarea::make('remarks')
-                                            ->label('หมายเหตุ')
-                                            ->rows(1)
-                                            ->columnSpan(2),
-                                    ]),
-                                ])
-                                ->columnSpanFull()
-                                ->collapsible()
-                                ->itemLabel(fn (array $state): ?string => $state['description'] ?? 'รายการใหม่')
-                                ->addActionLabel('เพิ่มรายการ')
-                                ->reorderableWithButtons()
-                                ->cloneable(),
-
-                            Forms\Components\Grid::make(3)->schema([
-                                Forms\Components\TextInput::make('budget_estimate')
-                                    ->label('งบประมาณโดยประมาณ')
-                                    ->numeric()
-                                    ->prefix('฿')
-                                    ->step(0.01)
-                                    ->placeholder('0.00'),
-
-                                Forms\Components\TextInput::make('budget_code')
-                                    ->label('รหัสงบประมาณ')
-                                    ->placeholder('e.g., BDG-2026-001'),
-
-                                Forms\Components\Select::make('currency')
-                                    ->label('สกุลเงิน')
-                                    ->default('THB')
-                                    ->options([
-                                        'THB' => 'THB - บาท',
-                                        'USD' => 'USD - ดอลลาร์สหรัฐ',
-                                        'EUR' => 'EUR - ยูโร',
-                                        'JPY' => 'JPY - เยนญี่ปุ่น',
-                                    ]),
-                            ]),
-
-                            Forms\Components\Grid::make(3)->schema([
-                                Forms\Components\DatePicker::make('start_date')
-                                    ->label('วันเริ่มต้น')
-                                    ->live()
-                                    ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                                        $endDate = $get('end_date');
-                                        if ($state && $endDate) {
-                                            $days = \Carbon\Carbon::parse($state)->diffInDays(\Carbon\Carbon::parse($endDate));
-                                            $set('duration_days', $days);
-                                        }
-                                    }),
-
-                                Forms\Components\DatePicker::make('end_date')
-                                    ->label('วันสิ้นสุด')
-                                    ->live()
-                                    ->afterStateUpdated(function ($state, Set $set, Get $get) {
-                                        $startDate = $get('start_date');
-                                        if ($state && $startDate) {
-                                            $days = \Carbon\Carbon::parse($startDate)->diffInDays(\Carbon\Carbon::parse($state));
-                                            $set('duration_days', $days);
-                                        }
-                                    }),
-
-                                Forms\Components\TextInput::make('duration_days')
-                                    ->label('ระยะเวลา (วัน)')
-                                    ->numeric()
-                                    ->disabled()
-                                    ->dehydrated(),
-                            ]),
-                        ]),
-
-                    // ─── Step 5: Committee & Documents ───────────
-                    Forms\Components\Wizard\Step::make('คณะกรรมการและเอกสาร')
-                        ->icon('heroicon-o-user-group')
-                        ->schema([
-                            Forms\Components\Grid::make(2)->schema([
-                                Forms\Components\Select::make('procurement_committee_id')
-                                    ->label('คณะกรรมการจัดซื้อ')
-                                    ->options(function () {
-                                        return \App\Models\User::whereHas('roles', function ($query) {
-                                            $query->where('name', 'procurement_committee');
-                                        })->orderBy('name')->pluck('name', 'id');
-                                    })
-                                    ->searchable()
-                                    ->placeholder('เลือกคณะกรรมการจัดซื้อ'),
-
-                                Forms\Components\Select::make('inspection_committee_id')
-                                    ->label('คณะกรรมการตรวจรับ')
-                                    ->options(function () {
-                                        return \App\Models\User::whereHas('roles', function ($query) {
-                                            $query->where('name', 'inspection_committee');
-                                        })->orderBy('name')->pluck('name', 'id');
-                                    })
-                                    ->searchable()
-                                    ->placeholder('เลือกคณะกรรมการตรวจรับ'),
-                            ]),
-
-                            // NOTE: Inline file upload removed to prevent orphaned files.
-                            // The previous FileUpload used ->dehydrated(false) and had no
-                            // after-create/save handler, so uploaded files were never linked
-                            // to a TermsOfReference record (storage disk leak + files vanished
-                            // from UI on refresh). Use the ProcurementAttachment polymorphic
-                            // relationship or a dedicated attachments relation manager instead.
-                        ]),
-                ])
-                    ->columnSpanFull()
-                    ->skippable(),
-            ]);
+        return $form->schema([]);
     }
 
     public static function table(Table $table): Table
@@ -497,8 +174,21 @@ class TermsOfReferenceResource extends Resource
                 static::yearFilter('submitted_at'),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\EditAction::make()
+                Tables\Actions\Action::make('preview')
+                    ->label('ดูเอกสาร')
+                    ->icon('heroicon-o-eye')
+                    ->url(fn ($record) => route('tor-builder.preview', $record), shouldOpenInNewTab: true)
+                    ->visible(fn ($record) => ! empty($record->document_sections)),
+                Tables\Actions\Action::make('pdf')
+                    ->label('PDF')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('warning')
+                    ->url(fn ($record) => route('tor-builder.pdf', $record), shouldOpenInNewTab: true)
+                    ->visible(fn ($record) => ! empty($record->document_sections)),
+                Tables\Actions\Action::make('edit')
+                    ->label('แก้ไข')
+                    ->icon('heroicon-o-pencil-square')
+                    ->url(fn ($record) => url('/admin/tor-builder?tor='.$record->id))
                     ->visible(fn ($record) => $record->canBeEdited()),
 
                 // Submit action
@@ -582,9 +272,6 @@ class TermsOfReferenceResource extends Resource
     {
         return [
             'index' => Pages\ListTermsOfReferences::route('/'),
-            'create' => Pages\CreateTermsOfReference::route('/create'),
-            'view' => Pages\ViewTermsOfReference::route('/{record}'),
-            'edit' => Pages\EditTermsOfReference::route('/{record}/edit'),
         ];
     }
 }

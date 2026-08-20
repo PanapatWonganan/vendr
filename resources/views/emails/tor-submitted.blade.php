@@ -177,7 +177,7 @@
             </div>
 
             <div style="text-align: center;">
-                <a href="{{ config('app.url') }}/admin/terms-of-references/{{ $tor->id }}" class="button">
+                <a href="{{ config('app.url') }}/tor-builder/{{ $tor->id }}/preview" class="button">
                     ดูรายละเอียดและพิจารณา
                 </a>
             </div>

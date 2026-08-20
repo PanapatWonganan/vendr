@@ -13,11 +13,17 @@ class TermsOfReference extends BaseModel
 
     // Status constants
     const STATUS_DRAFT = 'draft';
+
     const STATUS_SUBMITTED = 'submitted';
+
     const STATUS_REVIEWING = 'reviewing';
+
     const STATUS_APPROVED = 'approved';
+
     const STATUS_REJECTED = 'rejected';
+
     const STATUS_AMENDED = 'amended';
+
     const STATUS_CANCELLED = 'cancelled';
 
     const STATUSES = [
@@ -76,9 +82,14 @@ class TermsOfReference extends BaseModel
         'amendment_reason',
         'created_by',
         'updated_by',
+        'tor_template_id',
+        'procurement_type',
+        'party_term',
+        'document_sections',
     ];
 
     protected $casts = [
+        'document_sections' => 'array',
         'start_date' => 'date',
         'end_date' => 'date',
         'budget_estimate' => 'decimal:2',
@@ -100,6 +111,11 @@ class TermsOfReference extends BaseModel
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    public function torTemplate(): BelongsTo
+    {
+        return $this->belongsTo(TorTemplate::class, 'tor_template_id');
     }
 
     public function creator(): BelongsTo
@@ -209,7 +225,7 @@ class TermsOfReference extends BaseModel
         $prefix = "TOR-{$year}{$month}{$day}";
         $companyId = session('company_id');
 
-        if (!$companyId) {
+        if (! $companyId) {
             throw new \RuntimeException('Cannot generate TOR number without company context.');
         }
 
@@ -227,7 +243,7 @@ class TermsOfReference extends BaseModel
                 $newNumber = 1;
             }
 
-            return $prefix . '-' . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+            return $prefix.'-'.str_pad($newNumber, 4, '0', STR_PAD_LEFT);
         });
     }
 
@@ -247,12 +263,13 @@ class TermsOfReference extends BaseModel
         ]);
 
         $this->recordHistory('submitted', $user, $fromStatus, 'submitted');
+
         return true;
     }
 
     public function approve(User $user, ?string $comments = null): bool
     {
-        if (!in_array($this->status, ['submitted', 'reviewing'])) {
+        if (! in_array($this->status, ['submitted', 'reviewing'])) {
             return false;
         }
 
@@ -264,12 +281,13 @@ class TermsOfReference extends BaseModel
         ]);
 
         $this->recordHistory('approved', $user, $fromStatus, 'approved', $comments);
+
         return true;
     }
 
     public function reject(User $user, string $reason, ?string $comments = null): bool
     {
-        if (!in_array($this->status, ['submitted', 'reviewing'])) {
+        if (! in_array($this->status, ['submitted', 'reviewing'])) {
             return false;
         }
 
@@ -282,6 +300,7 @@ class TermsOfReference extends BaseModel
         ]);
 
         $this->recordHistory('rejected', $user, $fromStatus, 'rejected', $comments ?? $reason);
+
         return true;
     }
 
@@ -294,6 +313,7 @@ class TermsOfReference extends BaseModel
         $fromStatus = $this->status;
         $this->update(['status' => 'draft']);
         $this->recordHistory('returned', $user, $fromStatus, 'draft', $comments);
+
         return true;
     }
 
@@ -306,6 +326,7 @@ class TermsOfReference extends BaseModel
         $fromStatus = $this->status;
         $this->update(['status' => 'cancelled']);
         $this->recordHistory('cancelled', $user, $fromStatus, 'cancelled', $comments);
+
         return true;
     }
 
@@ -401,8 +422,8 @@ class TermsOfReference extends BaseModel
     public function canBeSubmitted(): bool
     {
         return $this->status === 'draft'
-            && !empty($this->title)
-            && !empty($this->scope_of_work);
+            && ! empty($this->title)
+            && ! empty($this->scope_of_work);
     }
 
     public function canBeApproved(): bool
@@ -419,7 +440,7 @@ class TermsOfReference extends BaseModel
 
     public function convertToPrData(): array
     {
-        return [
+        $data = [
             'tor_id' => $this->id,
             'title' => $this->title,
             'department_id' => $this->department_id,
@@ -430,7 +451,7 @@ class TermsOfReference extends BaseModel
             'procurement_budget' => $this->budget_estimate,
             'budget_code' => $this->budget_code,
             'description' => $this->scope_of_work,
-            'purpose' => $this->objectives,
+            'purpose' => $this->objectives ?: $this->title,
             'justification' => $this->background,
             'required_date' => $this->start_date,
             'expected_delivery_date' => $this->end_date,
@@ -438,10 +459,64 @@ class TermsOfReference extends BaseModel
             'inspection_committee_id' => $this->inspection_committee_id,
             'currency' => $this->currency,
         ];
+
+        // TOR จาก document builder: ดึงกำหนดจ่ายเงินจาก section การชำระเงิน
+        if (! empty($this->document_sections)) {
+            $schedule = $this->paymentScheduleFromSections();
+            if ($schedule !== '') {
+                $data['payment_schedule'] = $schedule;
+            }
+        }
+
+        return $data;
+    }
+
+    /** สรุปเงื่อนไขการชำระเงินจาก document_sections เป็นข้อความ (ใช้ตอนแปลงเป็น PR) */
+    public function paymentScheduleFromSections(): string
+    {
+        $payment = collect($this->document_sections ?? [])->firstWhere('type', 'payment');
+        if (! $payment || ($payment['hidden'] ?? false)) {
+            return '';
+        }
+
+        $lines = [];
+        foreach ($payment['data']['options'] ?? [] as $option) {
+            if (($option['enabled'] ?? false) !== true) {
+                continue;
+            }
+            if (($option['key'] ?? '') === 'installments') {
+                $rows = $option['rows'] ?? [];
+                $lines[] = ($option['label'] ?? 'ชำระเป็นงวดงาน').' จำนวน '.count($rows).' งวด';
+                foreach ($rows as $row) {
+                    $lines[] = "  งวดที่ {$row['no']} คิดเป็น ".rtrim(rtrim(number_format((float) ($row['percent'] ?? 0), 2), '0'), '.').'%';
+                }
+            } else {
+                $pct = ($option['percent'] ?? null) !== null
+                    ? ' '.rtrim(rtrim(number_format((float) $option['percent'], 2), '0'), '.').'%'
+                    : '';
+                $lines[] = ($option['label'] ?? '').$pct;
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     public function convertItemsToPrItems(): array
     {
+        // TOR จาก document builder ไม่มี TorItems — สร้างรายการเหมา 1 บรรทัดจากขอบเขตงาน
+        if ($this->items->isEmpty() && ! empty($this->document_sections)) {
+            return [[
+                'description' => $this->title,
+                'specification' => $this->scope_of_work,
+                'quantity' => 1,
+                'unit_of_measure' => 'งาน',
+                'estimated_unit_price' => $this->budget_estimate,
+                'estimated_amount' => $this->budget_estimate,
+                'required_date' => $this->start_date?->format('Y-m-d'),
+                'remarks' => null,
+            ]];
+        }
+
         return $this->items->map(function ($item) {
             return [
                 'description' => $item->description,
@@ -517,20 +592,23 @@ class TermsOfReference extends BaseModel
     public function getStatusTextAttribute(): string
     {
         $options = self::getStatusOptions();
+
         return $options[$this->status] ?? $this->status ?? 'ไม่ระบุ';
     }
 
     public function getTorTypeLabelAttribute(): string
     {
         $options = self::getTorTypeOptions();
+
         return $options[$this->tor_type] ?? $this->tor_type ?? 'ไม่ระบุ';
     }
 
     public function getRevisionLabelAttribute(): string
     {
-        if ($this->revision_number <= 0 && !$this->parent_tor_id) {
+        if ($this->revision_number <= 0 && ! $this->parent_tor_id) {
             return '';
         }
-        return 'Rev.' . $this->revision_number;
+
+        return 'Rev.'.$this->revision_number;
     }
 }

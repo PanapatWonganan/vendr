@@ -13,8 +13,10 @@ class ListTermsOfReferences extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make()
-                ->label('สร้าง TOR ใหม่'),
+            Actions\Action::make('create')
+                ->label('สร้าง TOR ใหม่')
+                ->icon('heroicon-o-plus')
+                ->url(url('/admin/tor-builder')),
         ];
     }
 }
